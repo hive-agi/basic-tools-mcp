@@ -1,0 +1,15 @@
+{:paths ["src"]
+ :deps {org.babashka/cli {:mvn/version "0.8.62"}
+        cheshire/cheshire {:mvn/version "5.13.0"}
+        ;; clojure-mcp-light transitive deps
+        parinferish/parinferish {:mvn/version "0.8.0"}
+        dev.weavejester/cljfmt {:mvn/version "0.15.5"}
+        ;; clojure-mcp-light — upstream delimiter repair + nREPL eval
+        io.github.bhauman/clojure-mcp-light {:git/tag "v0.2.1"
+                                             :git/sha "31e19702feea79e4b98c8d89d9df6e297cc740bf"}
+        ;; modex-bb — MCP server framework
+        io.github.hive-agi/modex-bb {:git/tag "v0.1.0"
+                                     :git/sha "439ff17ea854dce14a3e3963d6c86c5400c72962"}}
+ :tasks
+ {server {:doc "Start the basic-tools MCP server (babashka)"
+          :task (exec 'basic-tools-mcp.server/-main)}}}
