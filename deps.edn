@@ -4,7 +4,15 @@
         cheshire/cheshire {:mvn/version "5.13.0"}
         ;; clojure-mcp-light core deps (JVM-compatible subset)
         parinferish/parinferish {:mvn/version "0.8.0"}
-        dev.weavejester/cljfmt {:mvn/version "0.15.5"}}
+        dev.weavejester/cljfmt {:mvn/version "0.15.5"}
+        ;; babashka/fs — glob and filesystem utilities
+        babashka/fs {:mvn/version "0.5.30"}
+        ;; hive-dsl — Result ADT for railway-oriented error handling
+        io.github.hive-agi/hive-dsl
+        {:git/tag "v0.1.0" :git/sha "2bfa23f"}}
  :aliases
  {:test {:extra-paths ["test"]
-         :extra-deps {lambdaisland/kaocha {:mvn/version "1.91.1392"}}}}}
+         :extra-deps {lambdaisland/kaocha {:mvn/version "1.91.1392"}
+                      org.clojure/test.check {:mvn/version "1.1.1"}
+                      io.github.hive-agi/hive-test
+                      {:git/tag "v0.1.1" :git/sha "99a66ad"}}}}}

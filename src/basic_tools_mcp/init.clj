@@ -41,7 +41,7 @@
             (do
               (reset! state {:initialized? true})
               (log/info "basic-tools-mcp addon initialized")
-              {:success? true :errors [] :metadata {:tools 1}})))
+              {:success? true :errors [] :metadata {:tools 5}})))
 
         (shutdown! [_]
           (when (:initialized? @state)
@@ -50,7 +50,8 @@
           nil)
 
         (tools [_]
-          [(assoc (tools/tool-def) :handler tools/handle-clojure)])
+          (into [(assoc (tools/tool-def) :handler tools/handle-clojure)]
+                (tools/file-tool-defs)))
 
         (schema-extensions [_] {})
 
@@ -107,16 +108,16 @@
 ;; =============================================================================
 
 (defn register-tools! []
-  [(tools/tool-def)])
+  (into [(tools/tool-def)] (map #(dissoc % :handler) (tools/file-tool-defs))))
 
 (defn init-as-addon! []
   (if-let [result (some-> (make-addon)
                           (as-> addon (run-addon-pipeline! {:addon addon})))]
     (do
       (log/info "basic-tools-mcp registered as IAddon")
-      {:registered ["clojure"] :total 1})
+      {:registered ["clojure" "read_file" "file_write" "glob_files" "grep"] :total 5})
     (do
       (log/debug "IAddon unavailable, falling back to legacy init")
-      {:registered (mapv :name (register-tools!)) :total 1})))
+      {:registered (mapv :name (register-tools!)) :total (count (register-tools!))})))
 
 (defn get-addon-instance [] @addon-instance)

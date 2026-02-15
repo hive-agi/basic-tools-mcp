@@ -6,6 +6,7 @@
   (:require [modex-bb.mcp.server :as mcp-server]
             [modex-bb.mcp.tools :refer [tools]]
             [basic-tools-mcp.core :as core]
+            [basic-tools-mcp.file-core :as fc]
             [basic-tools-mcp.log :as log]))
 
 ;; =============================================================================
@@ -84,6 +85,57 @@
              (let [ports (core/discover-ports)]
                [{:ports ports :count (count ports)}]))))
 
+(def file-tools
+  (tools
+   (read_file "Read the contents of a file.
+
+Parameters:
+- path: Absolute path to the file
+- offset: Line number to start from (optional, default: 0)
+- limit: Max lines to read (optional, default: 2000)"
+              [{:keys [path offset limit]
+                :type {:path :string :offset :integer :limit :integer}
+                :doc  {:path "Absolute path to the file"
+                       :offset "Line to start from (default: 0)"
+                       :limit "Max lines to read (default: 2000)"}}]
+              (let [result (fc/read-file {:path path :offset offset :limit limit})]
+                [(:ok result)]))
+
+   (file_write "Write content to a file. Creates parent directories if needed."
+               [{:keys [file_path content]
+                 :type {:file_path :string :content :string}
+                 :doc  {:file_path "Absolute path to write"
+                        :content "Content to write"}}]
+               (let [result (fc/write-file {:file_path file_path :content content})]
+                 [(:ok result)]))
+
+   (glob_files "Find files matching a glob pattern.
+
+Examples:
+- glob_files(pattern: \"**/*.clj\")
+- glob_files(pattern: \"src/**/*.cljs\", path: \"/project\")"
+               [{:keys [pattern path]
+                 :type {:pattern :string :path :string}
+                 :doc  {:pattern "Glob pattern (e.g. **/*.clj)"
+                        :path "Root directory (default: cwd)"}}]
+               (let [result (fc/glob-files {:pattern pattern :path path})]
+                 [(:ok result)]))
+
+   (grep "Search for patterns in files using ripgrep.
+
+Examples:
+- grep(pattern: \"defn.*foo\")
+- grep(pattern: \"TODO\", path: \"src/\", include: \"*.clj\")"
+         [{:keys [pattern path include max_results]
+           :type {:pattern :string :path :string :include :string :max_results :integer}
+           :doc  {:pattern "Regex pattern to search"
+                  :path "Directory to search (default: cwd)"
+                  :include "File pattern to include (e.g. *.clj)"
+                  :max_results "Max results (default: 100)"}}]
+         (let [result (fc/grep-files {:pattern pattern :path path
+                                      :include include :max_results max_results})]
+           [(:ok result)]))))
+
 ;; =============================================================================
 ;; Server
 ;; =============================================================================
@@ -91,10 +143,10 @@
 (def mcp-server
   (mcp-server/->server
    {:name    "basic-tools-mcp"
-    :version "0.1.0"
-    :tools   clojure-tools}))
+    :version "0.2.0"
+    :tools   (merge clojure-tools file-tools)}))
 
 (defn -main [& _args]
-  (log/info "Starting basic-tools-mcp server v0.1.0")
+  (log/info "Starting basic-tools-mcp server v0.2.0")
   (mcp-server/start-server! mcp-server)
   (Thread/sleep 500))
