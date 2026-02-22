@@ -1,74 +1,86 @@
 (ns basic-tools-mcp.core
   "Bridge to clojure-mcp-light functions.
 
-   On babashka: requires clojure-mcp-light directly.
-   On JVM: uses requiring-resolve with graceful degradation."
-  (:require [clojure-mcp-light.delimiter-repair :as dr]
-            [basic-tools-mcp.log :as log]))
+   On babashka: clojure-mcp-light is on classpath (bb.edn git dep).
+   On JVM: uses requiring-resolve with graceful degradation.
+   All external deps are lazy-resolved — this ns loads without them."
+  (:require [basic-tools-mcp.log :as log]
+            [hive-dsl.result :as r]))
 
 ;; =============================================================================
-;; Lazy Resolution (nREPL deps need babashka.fs)
+;; Lazy Resolution
 ;; =============================================================================
 
-(defn- try-resolve [sym]
-  (try (requiring-resolve sym) (catch Exception _ nil)))
+(defn- resolve-api!
+  "Resolve a symbol via requiring-resolve. Returns Result<var>."
+  [sym]
+  (if-let [v (r/guard Exception nil (requiring-resolve sym))]
+    (r/ok v)
+    (r/err :ns/dependency-unavailable {:symbol sym})))
 
 ;; =============================================================================
-;; Delimiter Functions (always available — pure Clojure)
+;; Delimiter Functions (require clojure-mcp-light — available in bb, optional on JVM)
 ;; =============================================================================
 
 (defn delimiter-error?
-  "Check if code has delimiter errors. Returns boolean."
+  "Check if code has delimiter errors. Returns boolean.
+   Falls back to false if clojure-mcp-light unavailable."
   [code]
-  (boolean (dr/delimiter-error? code)))
+  (if-let [f (:ok (resolve-api! 'clojure-mcp-light.delimiter-repair/delimiter-error?))]
+    (boolean (f code))
+    (do (log/warn "clojure-mcp-light not available, skipping delimiter check")
+        false)))
 
 (defn actual-delimiter-error?
   "Non-signaling delimiter error check. Returns boolean."
   [code]
-  (boolean (dr/actual-delimiter-error? code)))
+  (if-let [f (:ok (resolve-api! 'clojure-mcp-light.delimiter-repair/actual-delimiter-error?))]
+    (boolean (f code))
+    false))
 
 (defn repair-delimiters
   "Repair delimiter errors. Returns {:success bool :text string :error string}."
   [code]
-  (dr/repair-delimiters code))
+  (if-let [f (:ok (resolve-api! 'clojure-mcp-light.delimiter-repair/repair-delimiters))]
+    (f code)
+    {:success false :error "clojure-mcp-light not available"}))
 
 (defn fix-delimiters
   "Fix delimiters — returns repaired string or original if no errors."
   [code]
-  (dr/fix-delimiters code))
+  (if-let [f (:ok (resolve-api! 'clojure-mcp-light.delimiter-repair/fix-delimiters))]
+    (f code)
+    code))
 
 ;; =============================================================================
 ;; Formatting (requires cljfmt)
 ;; =============================================================================
 
 (defn format-code
-  "Format Clojure code with cljfmt. Returns formatted string."
+  "Format Clojure code with cljfmt. Returns Result<string>."
   [code]
-  (if-let [reformat (try-resolve 'cljfmt.core/reformat-string)]
-    (reformat code)
-    (do (log/warn "cljfmt not available")
-        code)))
+  (r/let-ok [reformat (resolve-api! 'cljfmt.core/reformat-string)]
+            (r/try-effect* :format/failed (reformat code))))
 
 ;; =============================================================================
-;; nREPL Functions (require babashka.fs — bb only)
+;; nREPL Functions (require babashka context)
 ;; =============================================================================
 
 (defn eval-code
-  "Evaluate code via nREPL. Returns captured stdout string.
+  "Evaluate code via nREPL. Returns Result<string>.
    Requires babashka context for full functionality."
   [{:keys [code port host timeout]}]
-  (if-let [eval-fn (try-resolve 'clojure-mcp-light.nrepl-eval/eval-expr-with-timeout)]
-    (with-out-str
-      (eval-fn {:host (or host "localhost")
-                :port port
-                :expr code
-                :timeout-ms (or timeout 120000)}))
-    (throw (ex-info "nREPL eval not available (requires babashka context)" {}))))
+  (r/let-ok [eval-fn (resolve-api! 'clojure-mcp-light.nrepl-eval/eval-expr-with-timeout)]
+            (r/try-effect* :nrepl/eval-failed
+                           (with-out-str
+                             (eval-fn {:host (or host "localhost")
+                                       :port port
+                                       :expr code
+                                       :timeout-ms (or timeout 120000)})))))
 
 (defn discover-ports
-  "Discover nREPL servers. Returns vector of port info maps.
+  "Discover nREPL servers. Returns Result<vector>.
    Requires babashka context for full functionality."
   []
-  (if-let [discover-fn (try-resolve 'clojure-mcp-light.nrepl-eval/discover-nrepl-ports)]
-    (vec (discover-fn))
-    (throw (ex-info "nREPL discover not available (requires babashka context)" {}))))
+  (r/let-ok [discover-fn (resolve-api! 'clojure-mcp-light.nrepl-eval/discover-nrepl-ports)]
+            (r/try-effect* :nrepl/discover-failed (vec (discover-fn)))))

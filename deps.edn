@@ -1,15 +1,18 @@
 {:paths ["src" "resources"]
  :deps {org.clojure/clojure {:mvn/version "1.12.0"}
-        com.taoensso/timbre {:mvn/version "6.6.1"}
-        cheshire/cheshire {:mvn/version "5.13.0"}
-        ;; clojure-mcp-light core deps (JVM-compatible subset)
+        com.taoensso/timbre {:mvn/version "6.8.0"}
+        cheshire/cheshire {:mvn/version "6.1.0"}
+        ;; clojure-mcp-light transitive deps (delimiter repair + formatting)
+        ;; clojure-mcp-light itself is lazy-resolved (bb-only project, no JVM deps.edn paths)
         parinferish/parinferish {:mvn/version "0.8.0"}
-        dev.weavejester/cljfmt {:mvn/version "0.15.5"}
+        dev.weavejester/cljfmt {:mvn/version "0.16.0"}
         ;; babashka/fs — glob and filesystem utilities
-        babashka/fs {:mvn/version "0.5.30"}
-        ;; hive-dsl — Result ADT for railway-oriented error handling
+        babashka/fs {:mvn/version "0.5.31"}
+        ;; rewrite-clj — structural editing (AST-level form manipulation)
+        rewrite-clj/rewrite-clj {:mvn/version "1.2.51"}
+        ;; hive-dsl — ADT, Result monad, rescue/guard DSL, error taxonomy
         io.github.hive-agi/hive-dsl
-        {:git/tag "v0.1.0" :git/sha "2bfa23f"}}
+        {:git/tag "v0.3.0" :git/sha "2845fbf"}}
  :aliases
  {:test {:extra-paths ["test"]
          :extra-deps {lambdaisland/kaocha {:mvn/version "1.91.1392"}

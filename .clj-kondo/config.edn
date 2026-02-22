@@ -1,0 +1,9 @@
+{:lint-as {hive-dsl.result/let-ok clojure.core/let}
+
+ :hooks {:analyze-call {hive-dsl.result/guard       hooks.hive-dsl.result/guard
+                        hive-dsl.result/rescue      hooks.hive-dsl.result/rescue
+                        hive-dsl.result/try-effect  hooks.hive-dsl.result/try-effect
+                        hive-dsl.result/try-effect* hooks.hive-dsl.result/try-effect*}}
+
+ :linters {:unresolved-var {:exclude [hive-dsl.result/guard
+                                      hive-dsl.result/rescue]}}}

@@ -4,6 +4,7 @@
    Returns Result ADT values: (ok text) or (err :io/... {:message ...}).
    JVM-compatible: uses slurp/spit, babashka.fs, clojure.java.shell."
   (:require [babashka.fs :as fs]
+            [basic-tools-mcp.structural :as structural]
             [clojure.java.shell :as shell]
             [clojure.string :as str]
             [hive-dsl.result :as r]))
@@ -52,6 +53,37 @@
                      (if (seq matches)
                        (str/join "\n" matches)
                        "No matches found")))))
+
+;; =============================================================================
+;; Structural Editing
+;; =============================================================================
+
+(defn wrap-form
+  "Structural wrap: locate form at line, wrap with template, write back.
+   IO sandwich: read (IO) -> wrap-in-source (pure) -> write (IO)."
+  [{:keys [file_path line template]}]
+  (if (fs/exists? file_path)
+    (r/let-ok [source     (r/try-effect* :io/read-failure (slurp file_path))
+               new-source (structural/wrap-in-source source line template)]
+              (r/try-effect* :io/write-failure
+                             (spit file_path new-source)
+                             (str "Form at line " line " wrapped successfully")))
+    (r/err :io/not-found {:message (str "File not found: " file_path)})))
+
+(defn validated-write-file
+  "Write with pre-write delimiter validation for Clojure files.
+   Anti-corruption layer: rejects unbalanced Clojure at the boundary."
+  [{:keys [file_path content] :as params}]
+  (if (and (structural/clojure-source-file? file_path)
+           (not (structural/balanced? content)))
+    (r/err :io/unbalanced-delimiters
+           {:message "Content has unbalanced delimiters, write rejected"
+            :file_path file_path})
+    (write-file params)))
+
+;; =============================================================================
+;; Search
+;; =============================================================================
 
 (defn grep-files
   "Search for pattern using ripgrep."

@@ -4,91 +4,87 @@
    Exposes handle-clojure for hive-mcp IAddon integration
    and tool-def for MCP schema registration.
 
-   Commands: check, repair, format, eval, discover
+   Commands: check, repair, format, eval, discover, wrap
    File tools: read_file, file_write, glob_files, grep"
   (:require [basic-tools-mcp.core :as core]
             [basic-tools-mcp.file-core :as fc]
             [basic-tools-mcp.log :as log]
+            [clojure.string :as str]
             [hive-dsl.result :as r]))
+
+;; =============================================================================
+;; Command Helpers — Anti-corruption layer (DRY source resolution)
+;; =============================================================================
+
+(defn- resolve-source
+  "Resolve source text from :code or :file_path params.
+   Returns Result<{:text string :source label}>.
+   Anti-corruption layer: validates input at bounded context gate."
+  [{:keys [code file_path]}]
+  (cond
+    code      (r/ok {:text code :source "inline"})
+    file_path (r/try-effect* :io/read-failure
+                             {:text (slurp file_path) :source file_path})
+    :else     (r/err :input/missing {:message "Provide 'code' (string) or 'file_path'"})))
 
 ;; =============================================================================
 ;; Command Handlers
 ;; =============================================================================
 
 (def ^:private command-handlers
-  {"check"    (fn [{:keys [code file_path]}]
-                (let [text (cond
-                             code code
-                             file_path (try (slurp file_path)
-                                            (catch Exception e {:error (.getMessage e)}))
-                             :else nil)]
-                  (cond
-                    (nil? text)   {:error "Provide 'code' (string) or 'file_path'"}
-                    (map? text)   text
-                    :else         {:has-error (core/delimiter-error? text)
-                                   :source (if code "inline" file_path)})))
+  {"check"    (fn [params]
+                (r/let-ok [{:keys [text source]} (resolve-source params)]
+                          (r/ok {:has-error (core/delimiter-error? text)
+                                 :source source})))
 
-   "repair"   (fn [{:keys [code file_path]}]
-                (let [text (cond
-                             code code
-                             file_path (try (slurp file_path)
-                                            (catch Exception e {:error (.getMessage e)}))
-                             :else nil)]
-                  (cond
-                    (nil? text) {:error "Provide 'code' (string) or 'file_path'"}
-                    (map? text) text
-                    :else
-                    (let [had-error (core/actual-delimiter-error? text)
-                          result (core/repair-delimiters text)]
-                      (if (:success result)
-                        (do (when (and file_path (:text result))
-                              (spit file_path (:text result)))
-                            {:success true
-                             :text (:text result)
-                             :had-error had-error
-                             :source (if code "inline" file_path)})
-                        {:success false
-                         :error (or (:error result) "Repair failed")
-                         :had-error had-error})))))
+   "repair"   (fn [params]
+                (r/let-ok [{:keys [text source]} (resolve-source params)]
+                          (let [had-error (core/actual-delimiter-error? text)
+                                result (core/repair-delimiters text)]
+                            (if (:success result)
+                              (do (when (and (not= source "inline") (:text result))
+                                    (spit source (:text result)))
+                                  (r/ok {:success true
+                                         :text (:text result)
+                                         :had-error had-error
+                                         :source source}))
+                              (r/err :repair/failed
+                                     {:message (or (:error result) "Repair failed")
+                                      :had-error had-error})))))
 
-   "format"   (fn [{:keys [code file_path]}]
-                (let [text (cond
-                             code code
-                             file_path (try (slurp file_path)
-                                            (catch Exception e {:error (.getMessage e)}))
-                             :else nil)]
-                  (cond
-                    (nil? text) {:error "Provide 'code' (string) or 'file_path'"}
-                    (map? text) text
-                    :else
-                    (try
-                      (let [formatted (core/format-code text)]
-                        (when file_path (spit file_path formatted))
-                        {:formatted formatted
-                         :changed (not= text formatted)
-                         :source (if code "inline" file_path)})
-                      (catch Exception e
-                        {:error (str "Format failed: " (.getMessage e))})))))
+   "format"   (fn [params]
+                (r/let-ok [{:keys [text source]} (resolve-source params)
+                           formatted (core/format-code text)]
+                          (when (not= source "inline") (spit source formatted))
+                          (r/ok {:formatted formatted
+                                 :changed (not= text formatted)
+                                 :source source})))
 
    "eval"     (fn [{:keys [code port host timeout]}]
                 (if (and code port)
-                  (try
-                    {:output (core/eval-code {:code code
-                                              :port port
-                                              :host host
-                                              :timeout timeout})
-                     :host (or host "localhost")
-                     :port port}
-                    (catch Exception e
-                      {:error (str "Eval failed: " (.getMessage e))}))
-                  {:error "Requires 'code' and 'port'"}))
+                  (r/let-ok [output (core/eval-code {:code code :port port
+                                                     :host host :timeout timeout})]
+                            (r/ok {:output output
+                                   :host (or host "localhost")
+                                   :port port}))
+                  (r/err :input/missing {:message "Requires 'code' and 'port'"})))
 
    "discover" (fn [_params]
-                (try
-                  (let [ports (core/discover-ports)]
-                    {:ports ports :count (count ports)})
-                  (catch Exception e
-                    {:error (str "Discovery failed: " (.getMessage e))})))})
+                (r/let-ok [ports (core/discover-ports)]
+                          (r/ok {:ports ports :count (count ports)})))
+
+   "wrap"     (fn [{:keys [file_path line template]}]
+                (cond
+                  (nil? file_path) (r/err :input/missing {:message "file_path is required"})
+                  (nil? line)      (r/err :input/missing {:message "line is required"})
+                  (nil? template)  (r/err :input/missing {:message "template is required (use %s as placeholder)"})
+                  (not (str/includes? template "%s"))
+                  (r/err :input/invalid {:message "template must contain %s placeholder"})
+                  :else
+                  (r/let-ok [msg (fc/wrap-form {:file_path file_path
+                                                :line line
+                                                :template template})]
+                            (r/ok {:success true :message msg}))))})
 
 ;; =============================================================================
 ;; MCP Interface (IAddon integration)
@@ -99,28 +95,26 @@
    Returns MCP-compatible response map with :content vector."
   [{:keys [command] :as params}]
   (if-let [handler (get command-handlers command)]
-    (try
-      (let [result (handler params)]
-        (if (:error result)
-          {:content [{:type "text" :text (pr-str result)}]
-           :isError true}
-          {:content [{:type "text" :text (pr-str result)}]}))
-      (catch Exception e
-        (log/error "clojure command failed:" command (ex-message e))
-        {:content [{:type "text" :text (pr-str {:error   "Failed to handle command"
-                                                :command command
-                                                :details (ex-message e)})}]
+    (let [result (try
+                   (handler params)
+                   (catch Exception e
+                     (log/error "clojure command failed:" command (ex-message e))
+                     (r/err :command/exception {:command command
+                                                :message (ex-message e)})))]
+      (if (r/ok? result)
+        {:content [{:type "text" :text (pr-str (:ok result))}]}
+        {:content [{:type "text" :text (pr-str result)}]
          :isError true}))
-    {:content [{:type "text" :text (pr-str {:error     "Unknown command"
-                                            :command   command
-                                            :available (sort (keys command-handlers))})}]
+    {:content [{:type "text" :text (pr-str (r/err :command/unknown
+                                                  {:command   command
+                                                   :available (sort (keys command-handlers))}))}]
      :isError true}))
 
 (defn tool-def
   "MCP tool definition for the clojure tool."
   []
   {:name        "clojure"
-   :description "Clojure dev tools: check (delimiter errors), repair (fix delimiters), format (cljfmt), eval (nREPL), discover (nREPL ports)"
+   :description "Clojure dev tools: check (delimiter errors), repair (fix delimiters), format (cljfmt), eval (nREPL), discover (nREPL ports), wrap (structural edit)"
    :inputSchema {:type       "object"
                  :properties {:command   {:type "string"
                                           :enum (sort (keys command-handlers))}
@@ -133,7 +127,11 @@
                               :host      {:type        "string"
                                           :description "nREPL host (default: localhost)"}
                               :timeout   {:type        "number"
-                                          :description "Timeout in ms (default: 120000)"}}
+                                          :description "Timeout in ms (default: 120000)"}
+                              :line      {:type        "integer"
+                                          :description "1-based line number of the form to wrap (for wrap)"}
+                              :template  {:type        "string"
+                                          :description "Wrap template with %s placeholder for the original form (for wrap)"}}
                  :required   ["command"]}})
 
 ;; =============================================================================
