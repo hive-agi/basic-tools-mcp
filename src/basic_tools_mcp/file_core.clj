@@ -41,18 +41,62 @@
                    (spit file_path content)
                    (str "File written: " file_path))))
 
+(defn- rg-glob
+  "Fast glob using ripgrep. Returns sorted file list string, or nil if rg unavailable/slow.
+   Reads at most 1000 lines from rg output (no slurp), with 1s hard timeout.
+   Respects .gitignore — skips target/, node_modules/, .git/ etc."
+  [root pattern]
+  (let [simple-ext? (re-matches #"^\*\.[^/]+$" pattern)
+        args        (cond-> ["rg" "--files"]
+                      simple-ext? (conj "--max-depth" "1")
+                      :always     (conj "--glob" pattern root))
+        result      (deref
+                      (future
+                        (try
+                          (let [proc   (.start (ProcessBuilder. ^java.util.List args))
+                                reader (java.io.BufferedReader.
+                                         (java.io.InputStreamReader.
+                                           (.getInputStream proc)))
+                                lines  (loop [acc (transient []) i 0]
+                                         (if (>= i 1000)
+                                           (persistent! acc)
+                                           (if-let [line (.readLine reader)]
+                                             (recur (conj! acc line) (inc i))
+                                             (persistent! acc))))]
+                            (.destroyForcibly proc)
+                            lines)
+                          (catch Exception _ nil)))
+                      1000  ;; 1s hard timeout
+                      nil)]
+    (when (seq result)
+      (str/join "\n" (sort result)))))
+
 (defn glob-files
-  "Find files matching a glob pattern."
+  "Find files matching a glob pattern.
+   Uses ripgrep for speed (<1s), falls back to fs/glob with 1s timeout."
   [{:keys [pattern path]}]
   (let [root (or path (System/getProperty "user.dir"))]
     (r/try-effect* :io/read-failure
-                   (let [matches (->> (fs/glob root pattern)
-                                      (map str)
-                                      sort
-                                      (take 1000))]
-                     (if (seq matches)
-                       (str/join "\n" matches)
-                       "No matches found")))))
+      (or
+        ;; Primary: rg --files --glob (fast, respects .gitignore)
+        (rg-glob root pattern)
+        ;; Fallback: fs/glob with 1s timeout + depth limit
+        (let [result (deref
+                       (future
+                         (->> (fs/glob root pattern {:max-depth 20})
+                              (take 1000)
+                              (mapv str)))
+                       1000
+                       ::timeout)]
+          (cond
+            (= result ::timeout)
+            "glob_files timed out — try a more specific pattern or narrower path"
+
+            (seq result)
+            (str/join "\n" (sort result))
+
+            :else
+            "No matches found"))))))
 
 ;; =============================================================================
 ;; Structural Editing
