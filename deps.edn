@@ -12,10 +12,10 @@
         rewrite-clj/rewrite-clj {:mvn/version "1.2.54"}
         ;; hive-dsl — ADT, Result monad, rescue/guard DSL, error taxonomy
         io.github.hive-agi/hive-dsl
-        {:git/tag "v0.3.7" :git/sha "d5deced"}}
+        {:git/tag "v0.3.8" :git/sha "6f44e1b"}}
  :aliases
  {:test {:extra-paths ["test"]
          :extra-deps {lambdaisland/kaocha {:mvn/version "1.91.1392"}
                       org.clojure/test.check {:mvn/version "1.1.1"}
                       io.github.hive-agi/hive-test
-                      {:git/tag "v0.1.4" :git/sha "a529aa6"}}}}}
+                      {:git/tag "v0.1.5" :git/sha "db72654"}}}}}
