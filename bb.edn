@@ -3,7 +3,7 @@
         cheshire/cheshire {:mvn/version "6.2.0"}
         ;; clojure-mcp-light transitive deps
         parinferish/parinferish {:mvn/version "0.8.0"}
-        dev.weavejester/cljfmt {:mvn/version "0.16.3"}
+        dev.weavejester/cljfmt {:mvn/version "0.16.4"}
         ;; clojure-mcp-light — upstream delimiter repair + nREPL eval
         io.github.bhauman/clojure-mcp-light {:git/tag "v0.2.1"
                                              :git/sha "31e19702feea79e4b98c8d89d9df6e297cc740bf"}

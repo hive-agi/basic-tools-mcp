@@ -5,7 +5,7 @@
         ;; clojure-mcp-light transitive deps (delimiter repair + formatting)
         ;; clojure-mcp-light itself is lazy-resolved (bb-only project, no JVM deps.edn paths)
         parinferish/parinferish {:mvn/version "0.8.0"}
-        dev.weavejester/cljfmt {:mvn/version "0.16.3"}
+        dev.weavejester/cljfmt {:mvn/version "0.16.4"}
         ;; babashka/fs — glob and filesystem utilities
         babashka/fs {:mvn/version "0.5.32"}
         ;; rewrite-clj — structural editing (AST-level form manipulation)
