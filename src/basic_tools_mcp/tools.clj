@@ -34,8 +34,11 @@
 (def ^:private command-handlers
   {"check"    (fn [params]
                 (r/let-ok [{:keys [text source]} (resolve-source params)]
-                          (r/ok {:has-error (core/delimiter-error? text)
-                                 :source source})))
+                          (let [reader-err (core/reader-error? text)
+                                has-error? (boolean reader-err)]
+                            (r/ok (cond-> {:has-error has-error?
+                                           :source    source}
+                                    reader-err (assoc :message (:message reader-err)))))))
 
    "repair"   (fn [params]
                 (r/let-ok [{:keys [text source]} (resolve-source params)]

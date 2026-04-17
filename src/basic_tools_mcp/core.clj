@@ -31,6 +31,22 @@
     (do (log/warn "clojure-mcp-light not available, skipping delimiter check")
         false)))
 
+(defn reader-error?
+  "Check if code has ANY reader/parse error (not just delimiters).
+   Uses edamame parse-string-all — any exception means the code is broken.
+   Returns false | {:message str} on error."
+  [code]
+  (r/let-ok [parse-fn (resolve-api! 'edamame.core/parse-string-all)]
+            (let [result (r/try-effect* :reader/parse-error
+                                        (parse-fn code {:all true
+                                                        :features #{:bb :clj :cljs :cljr :default}
+                                                        :read-cond :allow
+                                                        :readers (fn [_tag] (fn [data] data))
+                                                        :auto-resolve name}))]
+              (if (r/err? result)
+                {:message (:message result)}
+                false))))
+
 (defn actual-delimiter-error?
   "Non-signaling delimiter error check. Returns boolean."
   [code]
