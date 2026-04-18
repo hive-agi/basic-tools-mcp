@@ -9,6 +9,13 @@
             [clojure.string :as str]
             [hive-dsl.result :as r]))
 
+(defn- resolve-path
+  "Resolve path against _caller_cwd when relative. Absolute paths pass through."
+  [path caller-cwd]
+  (if (and path caller-cwd (not (fs/absolute? path)))
+    (str (fs/path caller-cwd path))
+    (or path caller-cwd)))
+
 (defn- format-numbered-lines
   "Format lines with line numbers, applying offset and limit."
   [text offset limit]
@@ -22,8 +29,9 @@
 
 (defn read-file
   "Read a file with optional offset and limit. Returns numbered lines."
-  [{:keys [path offset limit]}]
-  (let [offset (or offset 0)
+  [{:keys [path offset limit _caller_cwd]}]
+  (let [path   (resolve-path path _caller_cwd)
+        offset (or offset 0)
         limit  (or limit 2000)]
     (if (fs/exists? path)
       (r/try-effect* :io/read-failure
@@ -74,8 +82,8 @@
 (defn glob-files
   "Find files matching a glob pattern.
    Uses ripgrep for speed (<1s), falls back to fs/glob with 1s timeout."
-  [{:keys [pattern path]}]
-  (let [root (or path (System/getProperty "user.dir"))]
+  [{:keys [pattern path _caller_cwd]}]
+  (let [root (resolve-path path (or _caller_cwd (System/getProperty "user.dir")))]
     (r/try-effect* :io/read-failure
       (or
         ;; Primary: rg --files --glob (fast, respects .gitignore)
@@ -131,8 +139,8 @@
 
 (defn grep-files
   "Search for pattern using ripgrep."
-  [{:keys [pattern path include max_results]}]
-  (let [root  (or path ".")
+  [{:keys [pattern path include max_results _caller_cwd]}]
+  (let [root  (resolve-path (or path ".") _caller_cwd)
         limit (or max_results 100)
         args  (cond-> ["rg" "--line-number" "--no-heading"]
                 include (into ["--glob" include])
