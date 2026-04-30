@@ -15,9 +15,9 @@
         ;; hive-dsl — Result ADT (also used by tools.clj handlers)
         io.github.hive-agi/hive-dsl {:git/tag "v0.4.1" :git/sha "07ab02a"}
         ;; hive-system — IPathQuery / IFilesystem protocols (DIP layer)
-        io.github.hive-agi/hive-system {:git/tag "v0.2.1" :git/sha "61c6e34"}
+        io.github.hive-agi/hive-system {:git/tag "v0.2.2" :git/sha "53524e3"}
         ;; hive-weave — bounded execution primitives
-        io.github.hive-agi/hive-weave {:git/tag "v0.2.1" :git/sha "51bed20"}}
+        io.github.hive-agi/hive-weave {:git/tag "v0.2.2" :git/sha "7aa6234"}}
  :tasks
  {server {:doc "Start the basic-tools MCP server (babashka)"
           :task (exec 'basic-tools-mcp.server/-main)}}}
