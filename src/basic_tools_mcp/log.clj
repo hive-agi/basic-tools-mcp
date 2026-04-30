@@ -1,9 +1,10 @@
 (ns basic-tools-mcp.log
-  "Logging shim — delegates to timbre on JVM, stderr on babashka.")
+  "Logging shim — delegates to timbre on JVM, stderr on babashka."
+  (:require [hive-dsl.result :as r]))
 
 (def ^:private use-timbre?
   (and (nil? (System/getProperty "babashaka.version"))
-       (some? (try (requiring-resolve 'taoensso.timbre/info) (catch Exception _ nil)))))
+       (some? (r/rescue nil (requiring-resolve 'taoensso.timbre/info)))))
 
 (defn stderr-log [level args]
   (binding [*out* *err*]

@@ -12,7 +12,13 @@
         rewrite-clj/rewrite-clj {:mvn/version "1.2.54"}
         ;; hive-dsl — ADT, Result monad, rescue/guard DSL, error taxonomy
         io.github.hive-agi/hive-dsl
-        {:git/tag "v0.4.0" :git/sha "c561cb7"}}
+        {:git/tag "v0.4.1" :git/sha "07ab02a"}
+        ;; hive-system — IPathQuery / IFilesystem protocols (DIP layer)
+        io.github.hive-agi/hive-system
+        {:git/tag "v0.2.1" :git/sha "61c6e34"}
+        ;; hive-weave — bounded execution primitives (safe-future, deref-safe)
+        io.github.hive-agi/hive-weave
+        {:git/tag "v0.2.1" :git/sha "51bed20"}}
  :aliases
  {:test {:extra-paths ["test"]
          :extra-deps {lambdaisland/kaocha {:mvn/version "1.91.1392"}

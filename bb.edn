@@ -11,7 +11,13 @@
         babashka/fs {:mvn/version "0.5.32"}
         ;; modex-bb — MCP server framework
         io.github.hive-agi/modex-bb {:git/tag "v0.1.2"
-                                     :git/sha "b12e8fc0db65129d2423595286e18c3f515ab8f5"}}
+                                     :git/sha "b12e8fc0db65129d2423595286e18c3f515ab8f5"}
+        ;; hive-dsl — Result ADT (also used by tools.clj handlers)
+        io.github.hive-agi/hive-dsl {:git/tag "v0.4.1" :git/sha "07ab02a"}
+        ;; hive-system — IPathQuery / IFilesystem protocols (DIP layer)
+        io.github.hive-agi/hive-system {:git/tag "v0.2.1" :git/sha "61c6e34"}
+        ;; hive-weave — bounded execution primitives
+        io.github.hive-agi/hive-weave {:git/tag "v0.2.1" :git/sha "51bed20"}}
  :tasks
  {server {:doc "Start the basic-tools MCP server (babashka)"
           :task (exec 'basic-tools-mcp.server/-main)}}}

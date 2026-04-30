@@ -8,14 +8,15 @@
      (init-as-addon!)    ;; Via addon system
      (register-tools!)   ;; Legacy fallback"
   (:require [basic-tools-mcp.tools :as tools]
-            [basic-tools-mcp.log :as log]))
+            [basic-tools-mcp.log :as log]
+            [hive-dsl.result :as r]))
 
 ;; =============================================================================
 ;; Resolution Helpers
 ;; =============================================================================
 
 (defn- try-resolve [sym]
-  (try (requiring-resolve sym) (catch Exception _ nil)))
+  (r/rescue nil (requiring-resolve sym)))
 
 ;; =============================================================================
 ;; IAddon Implementation
@@ -41,7 +42,7 @@
             (do
               (reset! state {:initialized? true})
               (log/info "basic-tools-mcp addon initialized")
-              {:success? true :errors [] :metadata {:tools 5}})))
+              {:success? true :errors [] :metadata {:tools 9}})))
 
         (shutdown! [_]
           (when (:initialized? @state)
@@ -115,7 +116,8 @@
                           (as-> addon (run-addon-pipeline! {:addon addon})))]
     (do
       (log/info "basic-tools-mcp registered as IAddon")
-      {:registered ["clojure" "read_file" "file_write" "glob_files" "grep"] :total 5})
+      {:registered ["clojure" "read_file" "file_write" "edit" "glob_files" "grep"
+                    "todo_write" "web_fetch" "web_search"] :total 9})
     (do
       (log/debug "IAddon unavailable, falling back to legacy init")
       {:registered (mapv :name (register-tools!)) :total (count (register-tools!))})))
