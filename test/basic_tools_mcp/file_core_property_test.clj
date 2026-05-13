@@ -197,3 +197,103 @@
                       nr-res (fc/read-file {:path (str "/tmp/fc-prop-xor-absent/" name)})]
                   (every? (fn [res] (not= (r/ok? res) (r/err? res)))
                           [w-res r-res nr-res]))))
+
+;; =============================================================================
+;; P12 — XML tool-call fragment guard at the file_write boundary
+;; =============================================================================
+;; carto-tool-unification-2026-05-11 plan §51-80: same sentinel as apply-edit,
+;; but at the write-file IO boundary. Mirrors the kanban task
+;; 20260511130051-33148409: reject `<invoke>`, `<parameter>`, `<new-body>`,
+;; `<function_calls>`, `<*>` markup; allow legitimate `<` characters.
+
+(def ^:private guard-path
+  "/tmp/fc-prop-xml-guard.txt")
+
+(defn- write-error-tag [result]
+  (when (r/err? result)
+    (:error result)))
+
+(deftest write-file-rejects-invoke-tag
+  (testing "<invoke> in `content` is rejected with :tool-call-fragment-detected"
+    (let [result (fc/write-file
+                  {:file_path guard-path
+                   :content   "(ns x) <invoke name=\"y\">payload</invoke>"})]
+      (is (r/err? result))
+      (is (= :tool-call-fragment-detected (write-error-tag result)))
+      (is (vector? (:tags-found result)))
+      (is (some #(clojure.string/starts-with? % "<invoke") (:tags-found result))))))
+
+(deftest write-file-rejects-parameter-tag
+  (testing "<parameter> in `content` is rejected"
+    (let [result (fc/write-file
+                  {:file_path guard-path
+                   :content   "(def x 1)\n<parameter name=\"p\">v</parameter>\n"})]
+      (is (r/err? result))
+      (is (= :tool-call-fragment-detected (write-error-tag result)))
+      (is (some #(clojure.string/starts-with? % "<parameter") (:tags-found result))))))
+
+(deftest write-file-rejects-new-body-tag
+  (testing "<new-body> in `content` is rejected"
+    (let [result (fc/write-file
+                  {:file_path guard-path
+                   :content   "<new-body>(ns y)</new-body>"})]
+      (is (r/err? result))
+      (is (= :tool-call-fragment-detected (write-error-tag result))))))
+
+(deftest write-file-rejects-function-calls-tag
+  (testing "<function_calls> in `content` is rejected"
+    (let [result (fc/write-file
+                  {:file_path guard-path
+                   :content   "<function_calls>foo</function_calls>"})]
+      (is (r/err? result))
+      (is (= :tool-call-fragment-detected (write-error-tag result))))))
+
+(deftest write-file-rejects-antml-namespaced-tag
+  (testing "<invoke> namespaced tags are rejected"
+    (let [result (fc/write-file
+                  {:file_path guard-path
+                   :content   "noise <invoke name=\"x\"> more"})]
+      (is (r/err? result))
+      (is (= :tool-call-fragment-detected (write-error-tag result))))))
+
+(deftest write-file-collects-all-distinct-tags
+  (testing "`:tags-found` enumerates every distinct tag (vector, ordered)"
+    (let [result (fc/write-file
+                  {:file_path guard-path
+                   :content   (str "<invoke name=\"a\">x</invoke>\n"
+                                   "<parameter name=\"b\">y</parameter>\n"
+                                   "<invoke name=\"c\">dup-name-prefix</invoke>")})]
+      (is (r/err? result))
+      (let [tags (:tags-found result)]
+        (is (vector? tags))
+        (is (some #(clojure.string/starts-with? % "<invoke") tags))
+        (is (some #(clojure.string/starts-with? % "<parameter") tags))))))
+
+(deftest write-file-allows-clean-clojure-source
+  (testing "Plain Clojure source writes successfully — sentinel does not over-reject"
+    (let [result (fc/write-file
+                  {:file_path guard-path
+                   :content   "(ns demo)\n\n(defn f [x] (if (< x 0) (- x) x))\n"})]
+      (is (r/ok? result)))))
+
+(deftest write-file-allows-less-than-operator
+  (testing "Bare `<` (Clojure comparator) is not flagged"
+    (let [result (fc/write-file
+                  {:file_path guard-path
+                   :content   "(< 1 2)"})]
+      (is (r/ok? result)))))
+
+(deftest write-file-allows-docstring-with-angle
+  (testing "Docstring containing a single `<` is NOT rejected (carto-tool-unification §51-80, kanban 20260511130051-33148409 acceptance criterion d)"
+    (let [result (fc/write-file
+                  {:file_path guard-path
+                   :content   "(defn f\n  \"Returns true when x < y.\"\n  [x y]\n  (< x y))\n"})]
+      (is (r/ok? result)))))
+
+(deftest write-file-allows-angle-pair-non-whitelisted
+  (testing "<foo> / <bar> tags NOT in the whitelist are allowed
+            (the detector is intentionally narrow)"
+    (let [result (fc/write-file
+                  {:file_path guard-path
+                   :content   "(str \"<foo>\" \"<bar>\")"})]
+      (is (r/ok? result)))))

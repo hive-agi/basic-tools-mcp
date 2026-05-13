@@ -33,14 +33,22 @@
                             :path resolved}))))
 
 (defn write-file
-  "Write content to a file. Creates parent directories if needed."
+  "Write content to a file. Creates parent directories if needed.
+
+   Pre-write guard: rejects payloads containing leaked LLM tool-call XML
+   markup (`<invoke>`, `<parameter>`, `<new-body>`, `<function_calls>`,
+   `<*>`). Mirrors the apply-edit sentinel so both write paths fail
+   loud with `:tool-call-fragment-detected` (carto-tool-unification plan §51-80)."
   [{:keys [file_path content]}]
-  (r/try-effect* :io/write-failure
-                 (let [parent (fs/parent file_path)]
-                   (when (and parent (not (fs/exists? parent)))
-                     (fs/create-dirs parent))
-                   (spit file_path content)
-                   (str "File written: " file_path))))
+  (let [tags (edit-core/find-all-tool-call-fragments content)]
+    (if (seq tags)
+      (edit-core/tool-call-fragment-error "content" tags)
+      (r/try-effect* :io/write-failure
+                     (let [parent (fs/parent file_path)]
+                       (when (and parent (not (fs/exists? parent)))
+                         (fs/create-dirs parent))
+                       (spit file_path content)
+                       (str "File written: " file_path))))))
 
 ;; =============================================================================
 ;; Structural Editing

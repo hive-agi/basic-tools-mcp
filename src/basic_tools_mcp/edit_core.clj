@@ -117,42 +117,101 @@
 ;; Apply Edit
 ;; =============================================================================
 
+(def ^:private tool-call-fragment-pattern
+  "Regex matching LLM tool-call XML markup that should never reach a source file.
+   Matches partial / streaming artifacts like `<invoke>`, `<parameter>`, `<new-body>`,
+   `<function_calls>`, and `<...>` tags. The detector is intentionally narrow
+   so legitimate Clojure code (e.g. `<` as a comparator, or `<foo>` as a Hiccup
+   placeholder string) is not flagged."
+  #"<(invoke|parameter|new-body|function_calls|antml:[A-Za-z_][A-Za-z0-9_]*)\b")
+
+(defn detect-tool-call-fragment
+  "Pure detector: scans `s` for leaked LLM tool-call XML markup.
+   Returns the first matched tag string (e.g. \"<invoke\") or nil when clean.
+   Total: never throws. Idempotent: deterministic on input."
+  [s]
+  (when (string? s)
+    (when-let [m (re-find tool-call-fragment-pattern s)]
+      ;; re-find returns [whole-match group1] for grouped patterns
+      (if (vector? m) (first m) m))))
+
+(defn find-all-tool-call-fragments
+  "Pure detector: returns every distinct tag string matched in `s`, preserving
+   first-seen order. Returns an empty vector for clean / non-string input.
+   Total: never throws. Idempotent on input."
+  [s]
+  (if-not (string? s)
+    []
+    (let [matcher (re-matcher tool-call-fragment-pattern s)]
+      (loop [seen #{} acc []]
+        (if-not (.find matcher)
+          acc
+          (let [tag (.group matcher 0)]
+            (if (contains? seen tag)
+              (recur seen acc)
+              (recur (conj seen tag) (conj acc tag)))))))))
+
+(defn tool-call-fragment-error
+  "Build the typed Result error for leaked tool-call XML markup.
+
+   Shape (from carto-tool-unification-2026-05-11 plan §51-80):
+     {:error      :tool-call-fragment-detected
+      :tags-found [...]      ;; every distinct tag matched, ordered
+      :message    \"...\"}    ;; human-readable
+
+   Param `where` is a short scope tag (e.g. \"new_string\" / \"content\")
+   surfaced in the message so the LLM knows which payload field tripped."
+  [where tags]
+  (r/err :tool-call-fragment-detected
+         {:message    (str where " contains LLM tool-call markup "
+                           (pr-str (vec tags))
+                           "; likely a streaming artifact. Retry without the fragment.")
+          :tags-found (vec tags)}))
+
 (defn apply-edit
   "Pure: apply a single Edit to `content`. Returns Result<string>.
 
    Errors:
-     :edit/not-found    — old-string did not appear in content
-     :edit/ambiguous    — old-string appeared more than once and replace_all not set
-     :edit/no-change    — content unchanged after replacement (old == new)
+     :edit/not-found                — old-string did not appear in content
+     :edit/ambiguous                — old-string appeared more than once and replace_all not set
+     :edit/no-change                — content unchanged after replacement (old == new)
+     :tool-call-fragment-detected   — new-string contains leaked LLM tool-call XML markup
+                                      (`<invoke>`, `<parameter>`, `<new-body>`, etc.) — most
+                                      likely a streaming artifact; caller should retry.
+                                      Payload carries `:tags-found [...]` (vector of every
+                                      distinct tag matched, in first-seen order).
 
    Trailing-newline edge case (mirrors claude-code-haha): when new-string is
    empty and old-string lacks a trailing newline, prefer matching `old + \\n`
    so the line is fully removed."
   [{:keys [content old-string new-string replace-all?]}]
-  (let [actual (find-actual-string content old-string)]
-    (cond
-      (nil? actual)
-      (r/err :edit/not-found
-             {:message "old_string not found in file (exact + quote-normalized match both failed)"})
+  (let [tags (find-all-tool-call-fragments new-string)]
+    (if (seq tags)
+      (tool-call-fragment-error "new_string" tags)
+      (let [actual (find-actual-string content old-string)]
+      (cond
+        (nil? actual)
+        (r/err :edit/not-found
+               {:message "old_string not found in file (exact + quote-normalized match both failed)"})
 
-      (and (not replace-all?)
-           (> (count-occurrences content actual) 1))
-      (r/err :edit/ambiguous
-             {:message "old_string appears multiple times; pass replace_all=true or expand context"
-              :occurrences (count-occurrences content actual)})
+        (and (not replace-all?)
+             (> (count-occurrences content actual) 1))
+        (r/err :edit/ambiguous
+               {:message "old_string appears multiple times; pass replace_all=true or expand context"
+                :occurrences (count-occurrences content actual)})
 
-      :else
-      (let [new-applied (preserve-quote-style old-string actual new-string)
-            ;; Empty-replacement trailing-newline trick
-            [match-str apply-str] (if (and (= "" new-string)
-                                           (not (str/ends-with? actual "\n"))
-                                           (str/includes? content (str actual "\n")))
-                                    [(str actual "\n") ""]
-                                    [actual new-applied])
-            updated (if replace-all?
-                      (str/replace content match-str apply-str)
-                      (str/replace-first content match-str apply-str))]
-        (if (= updated content)
-          (r/err :edit/no-change
-                 {:message "Replacement left content identical to original"})
-          (r/ok updated))))))
+        :else
+        (let [new-applied (preserve-quote-style old-string actual new-string)
+              ;; Empty-replacement trailing-newline trick
+              [match-str apply-str] (if (and (= "" new-string)
+                                             (not (str/ends-with? actual "\n"))
+                                             (str/includes? content (str actual "\n")))
+                                      [(str actual "\n") ""]
+                                      [actual new-applied])
+              updated (if replace-all?
+                        (str/replace content match-str apply-str)
+                        (str/replace-first content match-str apply-str))]
+          (if (= updated content)
+            (r/err :edit/no-change
+                   {:message "Replacement left content identical to original"})
+            (r/ok updated))))))))
