@@ -5,3 +5,4 @@ local.config.edn
 .clj-kondo/.cache/
 .clj-kondo/
 target/
+*.elc

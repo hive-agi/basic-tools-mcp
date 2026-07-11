@@ -6,83 +6,89 @@
 
    Path predicates route through hive-system.fs.core (DIP).
    Bounded execution uses hive-weave.safe."
-  (:require [babashka.fs :as fs]
-            [basic-tools-mcp.edit-core :as edit-core]
+  (:require [basic-tools-mcp.edit-core :as edit-core]
             [basic-tools-mcp.structural :as structural]
-            [clojure.java.shell :as shell]
-            [clojure.string :as str]
             [hive-dsl.result :as r]
-            [hive-system.fs.core :as hfs]
-            [hive-weave.safe :as weave]
             [basic-tools-mcp.file.edit :as edit]
             [basic-tools-mcp.file.search :as search]
-            [basic-tools-mcp.file.path :as fp]))
+            [basic-tools-mcp.file.path :as fp]
+            [hive-system.protocols :as system]
+            [basic-tools-mcp.file.ports :as ports]
+            [basic-tools-mcp.file.runtime :as runtime]))
 
 (declare edit-file glob-files grep-files)
 
 (defn read-file
   "Read a file with optional offset and limit. Returns numbered lines."
-  [{:keys [path offset limit _caller_cwd]}]
-  (let [resolved (fp/resolve-path path _caller_cwd)
-        offset   (or offset 0)
-        limit    (or limit 2000)]
-    (if (fs/exists? resolved)
-      (r/try-effect* :io/read-failure
-                     (fp/format-numbered-lines (slurp resolved) offset limit))
-      (r/err :io/not-found {:message (str "File not found: " resolved)
-                            :path resolved}))))
+  ([params]
+   (read-file (runtime/default-runtime) params))
+  ([{:keys [path-query text-files]} {:keys [path offset limit _caller_cwd]}]
+   (let [resolved (fp/resolve-path path _caller_cwd)
+         offset   (or offset 0)
+         limit    (or limit 2000)]
+     (r/let-ok [exists? (system/path-exists? path-query resolved)]
+       (if-not exists?
+         (r/err :io/not-found {:message (str "File not found: " resolved)
+                               :path resolved})
+         (r/let-ok [text (ports/read-text text-files resolved {})]
+           (r/ok (fp/format-numbered-lines text offset limit))))))))
 
 (defn write-file
   "Write content to a file. Creates parent directories if needed.
 
-   Pre-write guard: rejects payloads containing leaked LLM tool-call XML
-   markup (`<invoke>`, `<parameter>`, `<new-body>`, `<function_calls>`,
-   `<*>`). Mirrors the apply-edit sentinel so both write paths fail
-   loud with `:tool-call-fragment-detected` (carto-tool-unification plan §51-80)."
-  [{:keys [file_path content]}]
-  (let [tags (edit-core/find-all-tool-call-fragments content)]
-    (if (seq tags)
-      (edit-core/tool-call-fragment-error "content" tags)
-      (r/try-effect* :io/write-failure
-                     (let [parent (fs/parent file_path)]
-                       (when (and parent (not (fs/exists? parent)))
-                         (fs/create-dirs parent))
-                       (spit file_path content)
-                       (str "File written: " file_path))))))
+   Rejects leaked LLM tool-call markup before crossing the write boundary."
+  ([params]
+   (write-file (runtime/default-runtime) params))
+  ([{:keys [text-files]} {:keys [file_path content]}]
+   (let [tags (edit-core/find-all-tool-call-fragments content)]
+     (if (seq tags)
+       (edit-core/tool-call-fragment-error "content" tags)
+       (r/let-ok [_ (ports/write-text! text-files file_path content
+                                       {:create-parents? true})]
+         (r/ok (str "File written: " file_path)))))))
 
 ;; =============================================================================
 ;; Structural Editing
 ;; =============================================================================
 
 (defn wrap-form
-  "Structural wrap: locate form at line, wrap with template, write back.
-   IO sandwich: read (IO) -> wrap-in-source (pure) -> write (IO)."
-  [{:keys [file_path line template]}]
-  (if (fs/exists? file_path)
-    (r/let-ok [source     (r/try-effect* :io/read-failure (slurp file_path))
-               new-source (structural/wrap-in-source source line template)]
-              (r/try-effect* :io/write-failure
-                             (spit file_path new-source)
-                             (str "Form at line " line " wrapped successfully")))
-    (r/err :io/not-found {:message (str "File not found: " file_path)})))
+  "Structural wrap: bounded read -> pure transform -> bounded write."
+  ([params]
+   (wrap-form (runtime/default-runtime) params))
+  ([{:keys [path-query text-files]} {:keys [file_path line template]}]
+   (r/let-ok [exists? (system/path-exists? path-query file_path)]
+     (if-not exists?
+       (r/err :io/not-found {:message (str "File not found: " file_path)})
+       (r/let-ok [source     (ports/read-text text-files file_path {})
+                  new-source (structural/wrap-in-source source line template)
+                  _          (ports/write-text! text-files file_path new-source
+                                                {:create-parents? false})]
+         (r/ok (str "Form at line " line " wrapped successfully")))))))
 
 (defn validated-write-file
-  "Write with pre-write delimiter validation for Clojure files.
-   Anti-corruption layer: rejects unbalanced Clojure at the boundary."
-  [{:keys [file_path content] :as params}]
-  (if (and (structural/clojure-source-file? file_path)
-           (not (structural/balanced? content)))
-    (r/err :io/unbalanced-delimiters
-           {:message "Content has unbalanced delimiters, write rejected"
-            :file_path file_path})
-    (write-file params)))
+  "Write with pre-write delimiter validation for Clojure files."
+  ([params]
+   (validated-write-file (runtime/default-runtime) params))
+  ([runtime {:keys [file_path content] :as params}]
+   (if (and (structural/clojure-source-file? file_path)
+            (not (structural/balanced? content)))
+     (r/err :io/unbalanced-delimiters
+            {:message "Content has unbalanced delimiters, write rejected"
+             :file_path file_path})
+     (write-file runtime params))))
 
 ;; =============================================================================
 ;; Search
 ;; =============================================================================
 
-(def edit-file basic-tools-mcp.file.edit/edit-file)
+(defn edit-file
+  ([params] (edit/edit-file params))
+  ([runtime params] (edit/edit-file runtime params)))
 
-(def glob-files basic-tools-mcp.file.search/glob-files)
+(defn glob-files
+  ([params] (search/glob-files params))
+  ([runtime params] (search/glob-files runtime params)))
 
-(def grep-files basic-tools-mcp.file.search/grep-files)
+(defn grep-files
+  ([params] (search/grep-files params))
+  ([runtime params] (search/grep-files runtime params)))

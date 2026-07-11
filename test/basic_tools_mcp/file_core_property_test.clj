@@ -83,7 +83,7 @@
 
 (def gen-glob-params
   (gen/let [pattern gen-glob-pattern]
-    {:pattern pattern :path "/tmp"}))
+    {:pattern pattern :path *test-dir*}))
 
 (props/defprop-total p3-glob-total
   fc/glob-files gen-glob-params
@@ -91,7 +91,7 @@
 
 (def gen-grep-params
   (gen/let [pattern gen-grep-pattern]
-    {:pattern pattern :path "/tmp" :max_results 10}))
+    {:pattern pattern :path *test-dir* :max_results 10}))
 
 (props/defprop-total p4-grep-total
   fc/grep-files gen-grep-params
