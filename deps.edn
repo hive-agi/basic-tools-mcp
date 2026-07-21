@@ -12,16 +12,22 @@
         rewrite-clj/rewrite-clj {:mvn/version "1.2.54"}
         ;; hive-dsl — ADT, Result monad, rescue/guard DSL, error taxonomy
         io.github.hive-agi/hive-dsl
-        {:git/tag "v0.5.2" :git/sha "8d9760c"}
+        {:mvn/version "0.5.2"}
         ;; hive-system — IPathQuery / IFilesystem protocols (DIP layer)
         io.github.hive-agi/hive-system
-        {:git/tag "v0.2.7" :git/sha "dbbfeff"}
+        {:mvn/version "0.2.7"}
         ;; hive-weave — bounded execution primitives (safe-future, deref-safe)
         io.github.hive-agi/hive-weave
-        {:git/tag "v0.2.5" :git/sha "5895a2a"}}
+        {:mvn/version "0.2.5"}}
  :aliases
- {:test {:extra-paths ["test"]
+ {
+  ;; :build — tools.build entrypoint (clojure -T:build <task>). Canonical hive
+  ;; build: jar / jar-aot / install / bump / verify-license / deploy.
+  :build {:deps {io.github.clojure/tools.build {:mvn/version "0.10.9"}
+                 slipset/deps-deploy {:mvn/version "0.2.2"}}
+          :ns-default build}
+:test {:extra-paths ["test"]
          :extra-deps {lambdaisland/kaocha {:mvn/version "1.91.1392"}
                       org.clojure/test.check {:mvn/version "1.1.1"}
                       io.github.hive-agi/hive-test
-                      {:git/tag "v0.3.0" :git/sha "763e4bc"}}}}}
+                      {:mvn/version "0.3.6"}}}}}

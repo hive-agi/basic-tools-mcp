@@ -2,6 +2,6 @@
  :addon/kind         :addon
  :addon/type         :native
  :addon/init-ns      "basic-tools-mcp.init"
- :addon/init-fn      "init-as-addon!"
+ :addon/init-fn      "addon-ctor"
  :addon/capabilities #{:tools}
  :addon/description  "Clojure dev tools — delimiter repair, nREPL eval, cljfmt formatting (powered by clojure-mcp-light)"}

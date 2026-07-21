@@ -111,6 +111,16 @@
 (defn register-tools! []
   (into [(tools/tool-def)] (map #(dissoc % :handler) (tools/file-tool-defs))))
 
+(defn addon-ctor
+  "Pure constructor for the `basic-tools.mcp` IAddon — (config -> IAddon | nil).
+   The mounter (hive-addon.mount) resolves this via :addon/init-fn; the host
+   then drives register!/initialize!. No registration, no initialize! call, no
+   side effects. Returns nil when the IAddon protocol is absent from the
+   classpath (graceful). Additive: the zero-arg self-registering `init-as-addon!`
+   path remains for the current hive-mcp loader."
+  [_config]
+  (make-addon))
+
 (defn init-as-addon! []
   (if-let [result (some-> (make-addon)
                           (as-> addon (run-addon-pipeline! {:addon addon})))]
