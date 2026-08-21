@@ -5,28 +5,28 @@
         ;; clojure-mcp-light transitive deps (delimiter repair + formatting)
         ;; clojure-mcp-light itself is lazy-resolved (bb-only project, no JVM deps.edn paths)
         parinferish/parinferish {:mvn/version "0.8.0"}
-        dev.weavejester/cljfmt {:mvn/version "0.16.4"}
+        dev.weavejester/cljfmt {:mvn/version "0.16.5"}
         ;; babashka/fs — glob and filesystem utilities
-        babashka/fs {:mvn/version "0.5.32"}
+        babashka/fs {:mvn/version "0.5.34"}
         ;; rewrite-clj — structural editing (AST-level form manipulation)
-        rewrite-clj/rewrite-clj {:mvn/version "1.2.54"}
+        rewrite-clj/rewrite-clj {:mvn/version "1.2.55"}
         ;; hive-dsl — ADT, Result monad, rescue/guard DSL, error taxonomy
         io.github.hive-agi/hive-dsl
-        {:mvn/version "0.5.7"}
+        {:mvn/version "0.5.14"}
         ;; hive-system — IPathQuery / IFilesystem protocols (DIP layer)
         io.github.hive-agi/hive-system
-        {:mvn/version "0.2.11"}
+        {:mvn/version "0.3.4"}
         ;; hive-weave — bounded execution primitives (safe-future, deref-safe)
         io.github.hive-agi/hive-weave
-        {:mvn/version "0.2.9"}}
+        {:mvn/version "0.3.1"}}
  :aliases
  {
   ;; :build — tools.build entrypoint (clojure -T:build <task>). Canonical hive
   ;; build: jar / jar-aot / install / bump / verify-license / deploy.
-  :build {:deps {io.github.hive-agi/hive-build {:mvn/version "0.1.0"}}
+  :build {:deps {io.github.hive-agi/hive-build {:mvn/version "0.1.8"}}
           :ns-default hive-build.api}
 :test {:extra-paths ["test"]
          :extra-deps {lambdaisland/kaocha {:mvn/version "1.91.1392"}
                       org.clojure/test.check {:mvn/version "1.1.1"}
                       io.github.hive-agi/hive-test
-                      {:mvn/version "0.3.10"}}}}}
+                      {:mvn/version "0.3.12"}}}}}
