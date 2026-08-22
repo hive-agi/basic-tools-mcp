@@ -1,5 +1,14 @@
 # basic-tools-mcp
 
+<!-- hive-badges -->
+
+[![Clojars Project](https://img.shields.io/clojars/v/io.github.hive-agi/basic-tools-mcp.svg)](https://clojars.org/io.github.hive-agi/basic-tools-mcp)
+[![cljdoc](https://cljdoc.org/badge/io.github.hive-agi/basic-tools-mcp)](https://cljdoc.org/d/io.github.hive-agi/basic-tools-mcp/CURRENT)
+[![release](https://github.com/hive-agi/basic-tools-mcp/actions/workflows/release.yml/badge.svg)](https://github.com/hive-agi/basic-tools-mcp/actions/workflows/release.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+
+<!-- /hive-badges -->
+
 Standalone [MCP](https://modelcontextprotocol.io/) server for Clojure development tools. Wraps [clojure-mcp-light](https://github.com/bhauman/clojure-mcp-light) (by Bruce Hauman) as an IAddon. Runs on [Babashka](https://babashka.org/) via the [modex-bb](https://github.com/hive-agi/modex-bb) framework.
 
 Provides 5 tools: delimiter error detection/repair, code formatting, nREPL evaluation, and nREPL server discovery.
