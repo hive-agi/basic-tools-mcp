@@ -4,14 +4,22 @@
             [hive-dsl.result :as r]
             [basic-tools-mcp.file.path :as fp]
             [hive-system.protocols :as system]
+            [hive-system.shell.core :as sh]
             [hive-weave.safe :as safe]
             [hive-weave.gate :as gate]
             [basic-tools-mcp.file.runtime :as runtime]))
 
 (declare rg-glob glob-files grep-files)
 
+(def ^:private max-files
+  "Files a glob returns at most. One definition: the argv bound, the fallback
+   bound and the notice all read it."
+  1000)
+
+(def ^:private search-timeout-ms 1000)
+
 (def ^:private search-gate
-  (gate/gate {:permits 4 :timeout-ms 1000 :name "basic-tools/file-search"}))
+  (gate/gate {:permits 4 :timeout-ms search-timeout-ms :name "basic-tools/file-search"}))
 
 (defn- gated-call
   [opts f]
@@ -19,50 +27,53 @@
                          #(safe/safe-future-call opts f))
           identity))
 
-(defn- destroy-process!
-  [process]
-  (when (and process (.isAlive ^Process process))
-    (.destroyForcibly ^Process process)))
+(defn- gated
+  "Run F under the search gate, flattening its Result.
 
-(defn- capped-process-lines
-  "Run argv with bounded time, concurrency, and output cardinality."
-  [args timeout-ms max-lines]
-  (let [process-ref (atom nil)
-        result      (gated-call
-                     {:timeout-ms timeout-ms :name (str "process/" (first args))}
-                     #(let [process (.start (ProcessBuilder. ^java.util.List args))]
-                        (reset! process-ref process)
-                        (try
-                          (with-open [reader (java.io.BufferedReader.
-                                             (java.io.InputStreamReader.
-                                              (.getInputStream process)))]
-                            (loop [lines (transient []) count 0]
-                              (if (>= count max-lines)
-                                (persistent! lines)
-                                (if-let [line (.readLine reader)]
-                                  (recur (conj! lines line) (inc count))
-                                  (persistent! lines)))))
-                          (finally
-                            (destroy-process! process)))))]
-    (when (r/err? result)
-      (destroy-process! @process-ref))
-    result))
+   Admission only — no second deadline. F is expected to own its own, which is
+   what distinguishes this from `gated-call`."
+  [f]
+  (r/bind (gate/gate-run search-gate f) identity))
+
+(defn- truncation-notice
+  "LISTING, with a line saying so when it is not the whole answer."
+  [listing truncated?]
+  (if truncated?
+    (str listing "\n… truncated at " max-files
+         " files — narrow the pattern or the path to see the rest")
+    listing))
+
+(defn- capped
+  "{:matches (at most max-files) :truncated? bool} from FOUND.
+
+   FOUND must have been read with a budget of `(inc max-files)`: reading one
+   over is what makes the cap detectable instead of merely applied."
+  [found]
+  {:matches    (vec (take max-files found))
+   :truncated? (> (count found) max-files)})
 
 (defn rg-glob
-  "Fast bounded glob using ripgrep. Returns sorted file list string or nil.
+  "Fast bounded glob using ripgrep.
 
-   Output is capped at 1000 lines and the child process is forcibly destroyed
-   on completion, failure, or the one-second deadline."
+   Returns {:listing sorted-string :truncated? bool}, or nil when ripgrep
+   matched nothing or could not run.
+
+   `:truncated?` is carried out rather than swallowed. A caller handed exactly
+   `max-files` names cannot otherwise tell a directory that holds that many
+   from one that holds far more, and a capped list rendered as a complete one
+   is a wrong answer rather than a partial one."
   [root pattern]
   (let [simple-ext? (re-matches #"^\*\.[^/]+$" pattern)
         args        (cond-> ["rg" "--files"]
                       simple-ext? (conj "--max-depth" "1")
                       :always     (conj "--glob" pattern root))
-        result      (capped-process-lines args 1000 1000)]
+        result      (gated #(sh/lines! args {:max-lines  max-files
+                                             :timeout-ms search-timeout-ms}))]
     (when (r/ok? result)
-      (let [lines (:ok result)]
+      (let [{:keys [lines truncated?]} (:ok result)]
         (when (seq lines)
-          (str/join "\n" (sort lines)))))))
+          {:listing    (str/join "\n" (sort lines))
+           :truncated? (boolean truncated?)})))))
 
 (defn glob-files
   "Find files using capped ripgrep, then a gated hive-weave fallback."
@@ -70,21 +81,24 @@
    (glob-files (runtime/default-runtime) params))
   ([runtime {:keys [pattern path _caller_cwd]}]
    (let [root (fp/resolve-path path (or _caller_cwd (:cwd runtime)))]
-     (if-let [fast-result (rg-glob root pattern)]
-       (r/ok fast-result)
+     (if-let [{:keys [listing truncated?]} (rg-glob root pattern)]
+       (r/ok (truncation-notice listing truncated?))
        (let [result (gated-call
-                    {:timeout-ms 1000 :name "glob/fallback"}
+                    {:timeout-ms search-timeout-ms :name "glob/fallback"}
+                    ;; One MORE than the budget, so the cap is detectable rather
+                    ;; than merely applied — the same defect `lines!` fixed on
+                    ;; the ripgrep path, which this branch silently kept.
                     #(->> (fs/glob root pattern {:max-depth 20})
-                          (take 1000)
+                          (take (inc max-files))
                           (mapv str)))]
          (if (r/err? result)
            (r/err :io/read-failure
                   {:message "glob_files timed out or failed — try a narrower path"
                    :path root
                    :cause (:error result)})
-           (let [matches (:ok result)]
+           (let [{:keys [matches truncated?]} (capped (:ok result))]
              (r/ok (if (seq matches)
-                     (str/join "\n" (sort matches))
+                     (truncation-notice (str/join "\n" (sort matches)) truncated?)
                      "No matches found")))))))))
 
 (defn grep-files

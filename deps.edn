@@ -13,9 +13,9 @@
         ;; hive-dsl — ADT, Result monad, rescue/guard DSL, error taxonomy
         io.github.hive-agi/hive-dsl
         {:mvn/version "0.5.16"}
-        ;; hive-system — IPathQuery / IFilesystem protocols (DIP layer)
+        ;; hive-system — IPathQuery / IFilesystem / IBoundedShell (DIP layer)
         io.github.hive-agi/hive-system
-        {:mvn/version "0.3.5"}
+        {:mvn/version "0.3.6"}
         ;; hive-weave — bounded execution primitives (safe-future, deref-safe)
         io.github.hive-agi/hive-weave
         {:mvn/version "0.3.2"}}
