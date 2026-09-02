@@ -9,6 +9,7 @@
      (register-tools!)   ;; Legacy fallback"
   (:require [basic-tools-mcp.tools :as tools]
             [basic-tools-mcp.log :as log]
+            [hive-addon.protocol :as addon]
             [hive-dsl.result :as r]))
 
 ;; =============================================================================
@@ -25,10 +26,9 @@
 (defonce ^:private addon-instance (atom nil))
 
 (defn- make-addon []
-  (when (try-resolve 'hive-mcp.addons.protocol/IAddon)
-    (let [state (atom {:initialized? false})]
-      (reify
-        hive-mcp.addons.protocol/IAddon
+  (let [state (atom {:initialized? false})]
+    (reify
+      addon/IAddon
 
         (addon-id [_] "basic-tools.mcp")
 
@@ -59,7 +59,7 @@
         (health [_]
           (if (:initialized? @state)
             {:status :ok :details {}}
-            {:status :down :details {:reason "not initialized"}}))))))
+            {:status :down :details {:reason "not initialized"}})))))
 
 ;; =============================================================================
 ;; Nil-Railway Pipeline

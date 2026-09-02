@@ -2,6 +2,10 @@
  :deps {org.clojure/clojure {:mvn/version "1.12.5"}
         com.taoensso/timbre {:mvn/version "6.8.0"}
         cheshire/cheshire {:mvn/version "6.2.0"}
+        ;; hive-addon: the IAddon contract this addon implements. Depending on
+        ;; the contract lib rather than on a host namespace is what lets any
+        ;; host, hive-mcp or not, mount this jar.
+        io.github.hive-agi/hive-addon {:mvn/version "0.3.10"}
         ;; clojure-mcp-light transitive deps (delimiter repair + formatting)
         ;; clojure-mcp-light itself is lazy-resolved (bb-only project, no JVM deps.edn paths)
         parinferish/parinferish {:mvn/version "0.8.0"}
