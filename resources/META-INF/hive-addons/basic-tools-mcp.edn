@@ -4,4 +4,6 @@
  :addon/init-ns      "basic-tools-mcp.init"
  :addon/init-fn      "addon-ctor"
  :addon/capabilities #{:tools}
- :addon/description  "Clojure dev tools — delimiter repair, nREPL eval, cljfmt formatting (powered by clojure-mcp-light)"}
+ :addon/description  "Clojure dev tools — delimiter repair, nREPL eval, cljfmt formatting (powered by clojure-mcp-light)"
+ :addon/maturity :stable
+ :addon/trust-class :foss}
