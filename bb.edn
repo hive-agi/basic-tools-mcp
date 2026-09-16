@@ -13,11 +13,11 @@
         io.github.hive-agi/modex-bb {:git/tag "v0.1.8"
                                      :git/sha "1350c8788ed9fcdbd3aa202c963220f1d16e8788"}
         ;; hive-dsl — Result ADT (also used by tools.clj handlers)
-        io.github.hive-agi/hive-dsl {:git/tag "v0.5.27" :git/sha "a5a6ec2"}
+        io.github.hive-agi/hive-dsl {:git/tag "v0.5.28" :git/sha "fc94ffb"}
         ;; hive-system — IPathQuery / IFilesystem protocols (DIP layer)
         io.github.hive-agi/hive-system {:git/tag "v0.3.10" :git/sha "7ca22b3"}
         ;; hive-weave — bounded execution primitives
-        io.github.hive-agi/hive-weave {:git/tag "v0.3.12" :git/sha "9658d6f"}}
+        io.github.hive-agi/hive-weave {:git/tag "v0.3.13" :git/sha "5c303ff"}}
  :tasks
  {server {:doc "Start the basic-tools MCP server (babashka)"
           :task (exec 'basic-tools-mcp.server/-main)}}}
