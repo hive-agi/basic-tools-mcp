@@ -5,7 +5,7 @@
         ;; hive-addon: the IAddon contract this addon implements. Depending on
         ;; the contract lib rather than on a host namespace is what lets any
         ;; host, hive-mcp or not, mount this jar.
-        io.github.hive-agi/hive-addon {:mvn/version "1.0.13"}
+        io.github.hive-agi/hive-addon {:mvn/version "1.0.14"}
         ;; clojure-mcp-light transitive deps (delimiter repair + formatting)
         ;; clojure-mcp-light itself is lazy-resolved (bb-only project, no JVM deps.edn paths)
         parinferish/parinferish {:mvn/version "0.8.0"}
@@ -16,21 +16,21 @@
         rewrite-clj/rewrite-clj {:mvn/version "1.2.57"}
         ;; hive-dsl — ADT, Result monad, rescue/guard DSL, error taxonomy
         io.github.hive-agi/hive-dsl
-        {:mvn/version "0.5.30"}
+        {:mvn/version "0.5.31"}
         ;; hive-system — IPathQuery / IFilesystem / IBoundedShell (DIP layer)
         io.github.hive-agi/hive-system
         {:mvn/version "0.3.10"}
         ;; hive-weave — bounded execution primitives (safe-future, deref-safe)
         io.github.hive-agi/hive-weave
-        {:mvn/version "0.3.15"}}
+        {:mvn/version "0.3.16"}}
  :aliases
  {
   ;; :build — tools.build entrypoint (clojure -T:build <task>). Canonical hive
   ;; build: jar / jar-aot / install / bump / verify-license / deploy.
-  :build {:deps {io.github.hive-agi/hive-build {:mvn/version "0.1.21"}}
+  :build {:deps {io.github.hive-agi/hive-build {:mvn/version "0.1.22"}}
           :ns-default hive-build.api}
 :test {:extra-paths ["test"]
          :extra-deps {lambdaisland/kaocha {:mvn/version "1.91.1392"}
                       org.clojure/test.check {:mvn/version "1.1.3"}
                       io.github.hive-agi/hive-test
-                      {:mvn/version "0.4.8"}}}}}
+                      {:mvn/version "0.4.9"}}}}}
