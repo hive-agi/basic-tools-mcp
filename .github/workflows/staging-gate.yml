@@ -68,6 +68,12 @@ jobs:
           </server></servers></settings>
           EOF
 
+      - name: Install ripgrep
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ripgrep
+          rg --version
+
       # The pins must resolve from the registries before anything else is
       # worth running: this is the step a dependency sweep can break.
       - name: Resolve declared classpath
