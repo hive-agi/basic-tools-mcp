@@ -43,12 +43,14 @@ Parameters:
 
 (defn file-write-tool-def []
   {:name        "file_write"
-   :description "Write content to a file. Creates parent directories if needed."
+   :description "Write content to a file. Creates parent directories if needed. Refuses missing content and empty replacement of a non-empty file unless allow_empty is true."
    :inputSchema {:type       "object"
-                 :properties {:file_path {:type "string"
-                                          :description "Absolute path to write"}
-                              :content   {:type "string"
-                                          :description "Content to write"}}
+                 :properties {:file_path   {:type "string"
+                                            :description "Absolute path to write"}
+                              :content     {:type "string"
+                                            :description "Content to write (required, including for empty files)"}
+                              :allow_empty {:type "boolean"
+                                            :description "Explicitly allow empty content to replace a non-empty file (default false)"}}
                  :required   ["file_path" "content"]}})
 
 (defn edit-tool-def []
