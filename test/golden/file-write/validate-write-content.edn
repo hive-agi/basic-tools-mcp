@@ -1,0 +1,6 @@
+{:missing {:error :input/missing, :message "content is required; unknown text-like keys: new_body, text", :unknown-text-keys ["new_body" "text"]}
+ :nil-content {:error :input/missing, :message "content is required", :unknown-text-keys []}
+ :new-file-empty {:ok ""}
+ :existing-empty {:error :input/empty-overwrite, :message "content is empty; pass allow_empty true to empty an existing non-empty file"}
+ :explicit-empty {:ok ""}
+ :nonempty {:ok "replacement"}}

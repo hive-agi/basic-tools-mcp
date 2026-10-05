@@ -9,8 +9,13 @@
   (:import [java.nio.file Files]
            [java.nio.file.attribute FileAttribute]))
 
+(defn validate-write-sample
+  "Adapt the two-value Promote input to trifecta's unary contract."
+  [[params existing-text]]
+  (fc/validate-write-content params existing-text))
+
 (deftrifecta validate-write-content
-  basic-tools-mcp.file-core/validate-write-content
+  basic-tools-mcp.file-write-guard-test/validate-write-sample
   {:golden-path "test/golden/file-write/validate-write-content.edn"
    :cases {:missing [{:file_path "x" :text "oops" :new_body "lost"} nil]
            :nil-content [{:content nil} nil]
@@ -21,9 +26,9 @@
    :gen (gen/tuple (gen/hash-map :content gen/string-ascii)
                    (gen/one-of [(gen/return nil) gen/string-ascii]))
    :property-type :totality
-   :mutations [["always-ok" (fn [_ _] {:ok nil})]
-               ["always-missing" (fn [_ _] {:error :input/missing})]
-               ["ignore-existing" (fn [params _] (if (some? (:content params)) {:ok nil} {:error :input/missing}))]]})
+   :mutations [["always-ok" (fn [_] {:ok nil})]
+               ["always-missing" (fn [_] {:error :input/missing})]
+               ["ignore-existing" (fn [[params _]] (if (some? (:content params)) {:ok (:content params)} {:error :input/missing}))]]})
 
 (deftest handler-refuses-missing-content-without-truncating
   (let [dir (Files/createTempDirectory "write-guard-" (make-array FileAttribute 0))
@@ -44,6 +49,11 @@
       (is (not (:isError (tools/handle-file-write {:file_path (str path)
                                                     :content "" :allow_empty true}))))
       (is (= "" (slurp (str path))))
+      (is (not (:isError (tools/handle-file-write {:file_path (str path) :content ""}))))
+      (let [new-path (.resolve dir "new.txt")]
+        (is (not (:isError (tools/handle-file-write {:file_path (str new-path) :content ""}))))
+        (is (= "" (slurp (str new-path))))
+        (Files/deleteIfExists new-path))
       (finally
         (Files/deleteIfExists path)
         (Files/deleteIfExists dir)))))
