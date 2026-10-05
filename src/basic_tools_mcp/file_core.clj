@@ -59,7 +59,7 @@
     (not (string? content))
     (r/err :input/invalid {:message "content must be a string"})
 
-    (and (empty? content) (seq existing-text) (not (true? allow_empty)))
+    (and (empty? content) (seq existing-text) (not (contains? #{true "true"} allow_empty)))
     (r/err :input/empty-overwrite
            {:message "content is empty; pass allow_empty true to empty an existing non-empty file"})
 

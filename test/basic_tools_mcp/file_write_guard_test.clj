@@ -30,6 +30,15 @@
                ["always-missing" (fn [_] {:error :input/missing})]
                ["ignore-existing" (fn [[params _]] (if (some? (:content params)) {:ok (:content params)} {:error :input/missing}))]]})
 
+(deftest allow-empty-accepts-the-text-flag-a-consolidated-tool-sends
+  (testing "params a compact schema does not declare arrive as text"
+    (is (= {:ok ""} (fc/validate-write-content {:content "" :allow_empty "true"} "original"))))
+  (testing "anything else stays a refusal"
+    (doseq [flag ["false" "yes" 1 nil]]
+      (is (= :input/empty-overwrite
+             (:error (fc/validate-write-content {:content "" :allow_empty flag} "original")))
+          (pr-str flag)))))
+
 (deftest handler-refuses-missing-content-without-truncating
   (let [dir (Files/createTempDirectory "write-guard-" (make-array FileAttribute 0))
         path (.resolve dir "study-guide.txt")
