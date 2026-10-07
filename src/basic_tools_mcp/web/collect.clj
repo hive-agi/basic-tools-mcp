@@ -9,6 +9,8 @@
   (:require [basic-tools-mcp.web.text :as text]
             [clojure.string :as str]
             [hive-dsl.result :as r]
+            [hive-weave.gate :as gate]
+            [hive-weave.pool :as pool]
             [hive-weave.safe :as weave])
   (:import [java.net URI]
            [java.net.http HttpClient HttpRequest HttpResponse$BodyHandlers]
@@ -24,6 +26,24 @@
   (-fetch [this url opts]
     "Opts: :timeout-ms (default 30000), :headers, :as-text? (default true).
      Returns Result<{:status :body :url :content-type :duration-ms :bytes}>."))
+
+(defrecord GatedFetcher [fetcher admission]
+  IWebFetcher
+  (-fetcher-id [_] (-fetcher-id fetcher))
+  (-fetch [_ url opts]
+    (let [result (gate/gate-run admission #(-fetch fetcher url opts))]
+      (if (r/ok? result)
+        (:ok result)
+        (r/err :web/fetch-failed
+               {:message "web fetch admission refused"
+                :url url
+                :cause (:error result)})))))
+
+(defn gated-fetcher
+  "Wrap any IWebFetcher with a swappable hive-weave admission gate.
+   The delegate is never called when a permit cannot be acquired."
+  [fetcher admission]
+  (->GatedFetcher fetcher admission))
 
 ;; =============================================================================
 ;; JvmHttpFetcher — default backend (java.net.http)
@@ -63,6 +83,13 @@
      :duration-ms  (- (System/currentTimeMillis) start-ms)
      :bytes        (count (or body ""))}))
 
+(defonce ^:private fetch-pool
+  (pool/make-pool {:name "web-fetch" :size 8 :queue-capacity 8
+                   :rejection :abort}))
+
+(defonce ^:private fetch-admission
+  (gate/gate {:name "web-fetch" :permits 8 :timeout-ms 100}))
+
 (defrecord JvmHttpFetcher [^HttpClient client]
   IWebFetcher
   (-fetcher-id [_] :jvm-http)
@@ -71,7 +98,8 @@
     (let [start    (System/currentTimeMillis)
           req      (build-request url timeout-ms headers)
           fut-resp (weave/safe-future-call
-                    {:timeout-ms (+ timeout-ms 5000) :name "web/fetch"}
+                    {:timeout-ms (+ timeout-ms 5000) :name "web/fetch"
+                     :pool fetch-pool}
                     #(.send client req (HttpResponse$BodyHandlers/ofString)))]
       (if (r/ok? fut-resp)
         (r/ok (shape-response (:ok fut-resp) url start as-text?))
@@ -81,5 +109,7 @@
                 :cause   (:error fut-resp)})))))
 
 (defn make-jvm-fetcher
-  ([]                     (->JvmHttpFetcher default-http-client))
-  ([^HttpClient client]   (->JvmHttpFetcher client)))
+  "Construct the default admission-bound HTTP fetcher, or supply a client
+   without changing the IWebFetcher contract."
+  ([]                   (make-jvm-fetcher default-http-client))
+  ([^HttpClient client] (gated-fetcher (->JvmHttpFetcher client) fetch-admission)))

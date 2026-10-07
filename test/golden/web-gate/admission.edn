@@ -1,0 +1,8 @@
+{:admitted
+ {:id :stub, :calls 1, :ok {:body "stub"}, :error nil, :cause nil},
+ :refused
+ {:id :stub,
+  :calls 0,
+  :ok nil,
+  :error :web/fetch-failed,
+  :cause :gate/timeout}}
