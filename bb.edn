@@ -10,8 +10,8 @@
         ;; babashka/fs — glob and filesystem utilities
         babashka/fs {:mvn/version "0.5.34"}
         ;; modex-bb — MCP server framework
-        io.github.hive-agi/modex-bb {:git/tag "v0.1.13"
-                                     :git/sha "a6893ccb953d2e9c6056a685478d9fccd1802feb"}
+        io.github.hive-agi/modex-bb {:git/tag "v0.1.14"
+                                     :git/sha "7c26331a3b75903dbf646ef780082ac12492c148"}
         ;; hive-dsl — Result ADT (also used by tools.clj handlers)
         io.github.hive-agi/hive-dsl {:git/tag "v0.5.34" :git/sha "841e049"}
         ;; hive-system — IPathQuery / IFilesystem protocols (DIP layer)
