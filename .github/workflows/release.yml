@@ -30,6 +30,14 @@ jobs:
         with:
           cli: latest
 
+      # The file.search tests shell out to rg; staging-gate.yml installs it
+      # too. Without it every release since 2026-09-20 failed in Run tests.
+      - name: Install ripgrep
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ripgrep
+          rg --version
+
       # A published pom is immutable, so the suite runs BEFORE anything
       # is minted. Without this step a red push straight to main still
       # deploys, and the bad version can never be replaced.
