@@ -52,7 +52,10 @@ jobs:
           VER=$(cat VERSION)
           git config user.name  "hive-ci"
           git config user.email "ci@hive-agi.local"
-          git add VERSION
+          # The server reads its version from the classpath copy; keep it
+          # equal to VERSION (release_parity_test asserts the two match).
+          cp VERSION resources/basic-tools-mcp/VERSION
+          git add VERSION resources/basic-tools-mcp/VERSION
           # [skip ci] stops this push from retriggering the workflow.
           git commit -m "chore(release): $VER [skip ci]"
           # Annotated: `git push --follow-tags` ignores lightweight tags,
