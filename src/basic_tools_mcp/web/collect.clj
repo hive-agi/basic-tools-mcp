@@ -54,14 +54,35 @@
       (connectTimeout (Duration/ofSeconds 10))
       build))
 
+(def default-user-agent
+  "Browser-shaped User-Agent sent when the caller supplies none.
+   Some origins (e.g. www.planalto.gov.br) drop the connection outright
+   for a bot-like UA such as \"hive-agent/0.1\", which surfaces as
+   \"HTTP/1.1 header parser received no bytes\"."
+  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+
+(def default-headers
+  "Headers every request carries unless the caller overrides them."
+  {"User-Agent" default-user-agent
+   "Accept"     "text/html,text/plain,application/json,*/*;q=0.8"})
+
+(defn request-headers
+  "Pure: merge caller `headers` over `default-headers`. Header names are
+   case-insensitive, so a caller key in any case (string or keyword)
+   replaces the default of the same name instead of duplicating it."
+  [headers]
+  (let [caller   (into {} (map (fn [[k v]] [(name k) (str v)])) headers)
+        overrode (into #{} (map str/lower-case) (keys caller))]
+    (merge (into {} (remove (fn [[k _]] (overrode (str/lower-case k))))
+                 default-headers)
+           caller)))
+
 (defn- build-request
   ^HttpRequest [^String url ^long timeout-ms headers]
   (let [b (.. (HttpRequest/newBuilder (URI/create url))
-              (timeout (Duration/ofMillis timeout-ms))
-              (header "User-Agent" "hive-agent/0.1 (basic-tools-mcp)")
-              (header "Accept"     "text/html,text/plain,application/json,*/*;q=0.8"))]
-    (doseq [[k v] headers]
-      (.header b (name k) (str v)))
+              (timeout (Duration/ofMillis timeout-ms)))]
+    (doseq [[k v] (request-headers headers)]
+      (.setHeader b ^String k ^String v))
     (.build b)))
 
 (defn- looks-like-html?
