@@ -1,0 +1,10 @@
+;; clj-kondo config for basic-tools-mcp.
+;;
+;; The macro-aware lint comes from the configs our dependencies export, copied
+;; under .clj-kondo/imports/ and auto-loaded:
+;;   - io.github.hive-agi/modex-bb   (modex-bb.mcp.tools/tools hook)
+;;   - io.github.hive-agi/hive-test  (deftrifecta, defprop-*, defspec lint-as)
+;;   - io.github.hive-agi/hive-dsl   (let-ok and the other Result macros)
+;;
+;; Refresh them after a dependency bump with `bb lint-deps`.
+{:auto-load-configs true}

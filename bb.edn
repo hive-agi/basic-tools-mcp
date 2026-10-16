@@ -20,4 +20,11 @@
         io.github.hive-agi/hive-weave {:git/tag "v0.4.2" :git/sha "9c380ca"}}
  :tasks
  {server {:doc "Start the basic-tools MCP server (babashka)"
-          :task (exec 'basic-tools-mcp.server/-main)}}}
+          :task (exec 'basic-tools-mcp.server/-main)}
+  ;; modex-bb is a bb-only dep, hive-test a JVM :test dep, so both classpaths
+  ;; are walked for exported clj-kondo configs.
+  lint-deps {:doc "Copy dependency clj-kondo configs into .clj-kondo/imports"
+             :task (do (shell "sh -c" "clj-kondo --lint \"$(bb print-deps --format classpath)\" --dependencies --copy-configs --skip-lint")
+                       (shell "sh -c" "clj-kondo --lint \"$(clojure -Spath -A:test)\" --dependencies --copy-configs --skip-lint"))}
+  lint {:doc "Lint src and test with the imported macro configs"
+        :task (shell "clj-kondo --lint src test --fail-level error")}}}
