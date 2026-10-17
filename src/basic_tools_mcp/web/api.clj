@@ -19,9 +19,27 @@
 (defonce ^:private default-searcher-ref (atom (search/make-null-searcher)))
 (defonce ^:private default-emitter-ref  (atom (search/make-noop-emitter)))
 
-(defn default-fetcher  [] @default-fetcher-ref)
-(defn default-searcher [] @default-searcher-ref)
-(defn default-emitter  [] @default-emitter-ref)
+(defn default-fetcher []
+  (let [f @default-fetcher-ref]
+    (if (satisfies? collect/IWebFetcher f)
+      f
+      (let [fresh (collect/make-jvm-fetcher)]
+        (swap! default-fetcher-ref #(if (identical? % f) fresh %))
+        @default-fetcher-ref))))
+(defn default-searcher []
+  (let [s @default-searcher-ref]
+    (if (satisfies? search/IWebSearcher s)
+      s
+      (let [fresh (search/make-null-searcher)]
+        (swap! default-searcher-ref #(if (identical? % s) fresh %))
+        @default-searcher-ref))))
+(defn default-emitter []
+  (let [e @default-emitter-ref]
+    (if (satisfies? search/IWebSearchEmitter e)
+      e
+      (let [fresh (search/make-noop-emitter)]
+        (swap! default-emitter-ref #(if (identical? % e) fresh %))
+        @default-emitter-ref))))
 
 (defn set-default-fetcher!  [f] (reset! default-fetcher-ref  f) f)
 (defn set-default-searcher! [s] (reset! default-searcher-ref s) s)
