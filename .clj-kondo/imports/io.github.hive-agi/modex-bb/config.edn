@@ -1,0 +1,4 @@
+;; clj-kondo config exported by modex-bb.
+{:hooks
+ {:analyze-call
+  {modex-bb.mcp.tools/tool modex-bb.hooks.tools/tool modex-bb.mcp.tools/tool-v1 modex-bb.hooks.tools/tool modex-bb.mcp.tools/tool-v2-argmap modex-bb.hooks.tools/tool modex-bb.mcp.tools/tools modex-bb.hooks.tools/tools modex-bb.mcp.tools/deftools modex-bb.hooks.tools/deftools modex-bb.mcp.tools/handler modex-bb.hooks.tools/handler}}}
