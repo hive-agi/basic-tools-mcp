@@ -67,6 +67,10 @@ jobs:
         run: |
           set -euo pipefail
           VER=$(tr -d '[:space:]' < VERSION)
+          # The server reads its version from the classpath copy; keep it
+          # equal to VERSION in the workspace so the jar carries the release
+          # (release_parity_test asserts the two match). Not committed.
+          cp VERSION resources/basic-tools-mcp/VERSION
           git config user.name  "hive-ci"
           git config user.email "ci@hive-agi.local"
           # Tag only, no commit: a version-bump commit on main is one staging
