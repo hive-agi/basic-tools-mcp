@@ -17,7 +17,7 @@
         ;; hive-system — IPathQuery / IFilesystem protocols (DIP layer)
         io.github.hive-agi/hive-system {:mvn/version "0.3.22"}
         ;; hive-weave — bounded execution primitives
-        io.github.hive-agi/hive-weave {:git/tag "v0.4.3" :git/sha "854b181"}}
+        io.github.hive-agi/hive-weave {:mvn/version "0.4.2"}}
  :tasks
  {server {:doc "Start the basic-tools MCP server (babashka)"
           :task (exec 'basic-tools-mcp.server/-main)}
