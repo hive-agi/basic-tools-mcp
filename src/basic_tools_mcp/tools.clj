@@ -52,44 +52,47 @@
    (assoc (web-fetch-tool-def) :handler handle-web-fetch)
    (assoc (web-search-tool-def) :handler handle-web-search)])
 
-;; Rename for clarity: clojure supertool def
+;; Re-exports. Each one DELEGATES through the owning var at call time rather
+;; than `(def x owner/x)`, which would capture the fn OBJECT: a reload of the
+;; owner (a fix applied in a live image) would then never reach callers that
+;; enter through this facade. See epic 20260821211613-0c0e618f.
 
-(def handle-clojure basic-tools-mcp.tools.clojure/handle-clojure)
+(defn handle-clojure [& args] (apply basic-tools-mcp.tools.clojure/handle-clojure args))
 
-(def tool-def basic-tools-mcp.tools.clojure/tool-def)
+(defn tool-def [& args] (apply basic-tools-mcp.tools.clojure/tool-def args))
 
-(def clojure-tool-def basic-tools-mcp.tools.clojure/clojure-tool-def)
+(defn clojure-tool-def [& args] (apply basic-tools-mcp.tools.clojure/clojure-tool-def args))
 
-(def invalidate-cache! basic-tools-mcp.tools.clojure/invalidate-cache!)
+(defn invalidate-cache! [& args] (apply basic-tools-mcp.tools.clojure/invalidate-cache! args))
 
-(def handle-read-file basic-tools-mcp.tools.file/handle-read-file)
+(defn handle-read-file [& args] (apply basic-tools-mcp.tools.file/handle-read-file args))
 
-(def handle-file-write basic-tools-mcp.tools.file/handle-file-write)
+(defn handle-file-write [& args] (apply basic-tools-mcp.tools.file/handle-file-write args))
 
-(def handle-edit basic-tools-mcp.tools.file/handle-edit)
+(defn handle-edit [& args] (apply basic-tools-mcp.tools.file/handle-edit args))
 
-(def handle-glob-files basic-tools-mcp.tools.file/handle-glob-files)
+(defn handle-glob-files [& args] (apply basic-tools-mcp.tools.file/handle-glob-files args))
 
-(def handle-grep basic-tools-mcp.tools.file/handle-grep)
+(defn handle-grep [& args] (apply basic-tools-mcp.tools.file/handle-grep args))
 
-(def read-file-tool-def basic-tools-mcp.tools.file/read-file-tool-def)
+(defn read-file-tool-def [& args] (apply basic-tools-mcp.tools.file/read-file-tool-def args))
 
-(def file-write-tool-def basic-tools-mcp.tools.file/file-write-tool-def)
+(defn file-write-tool-def [& args] (apply basic-tools-mcp.tools.file/file-write-tool-def args))
 
-(def edit-tool-def basic-tools-mcp.tools.file/edit-tool-def)
+(defn edit-tool-def [& args] (apply basic-tools-mcp.tools.file/edit-tool-def args))
 
-(def glob-files-tool-def basic-tools-mcp.tools.file/glob-files-tool-def)
+(defn glob-files-tool-def [& args] (apply basic-tools-mcp.tools.file/glob-files-tool-def args))
 
-(def grep-tool-def basic-tools-mcp.tools.file/grep-tool-def)
+(defn grep-tool-def [& args] (apply basic-tools-mcp.tools.file/grep-tool-def args))
 
-(def handle-todo-write basic-tools-mcp.tools.todo/handle-todo-write)
+(defn handle-todo-write [& args] (apply basic-tools-mcp.tools.todo/handle-todo-write args))
 
-(def todo-write-tool-def basic-tools-mcp.tools.todo/todo-write-tool-def)
+(defn todo-write-tool-def [& args] (apply basic-tools-mcp.tools.todo/todo-write-tool-def args))
 
-(def handle-web-fetch basic-tools-mcp.tools.web/handle-web-fetch)
+(defn handle-web-fetch [& args] (apply basic-tools-mcp.tools.web/handle-web-fetch args))
 
-(def handle-web-search basic-tools-mcp.tools.web/handle-web-search)
+(defn handle-web-search [& args] (apply basic-tools-mcp.tools.web/handle-web-search args))
 
-(def web-fetch-tool-def basic-tools-mcp.tools.web/web-fetch-tool-def)
+(defn web-fetch-tool-def [& args] (apply basic-tools-mcp.tools.web/web-fetch-tool-def args))
 
-(def web-search-tool-def basic-tools-mcp.tools.web/web-search-tool-def)
+(defn web-search-tool-def [& args] (apply basic-tools-mcp.tools.web/web-search-tool-def args))
