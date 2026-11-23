@@ -79,6 +79,23 @@ jobs:
       - name: Resolve declared classpath
         run: clojure -P
 
+      # The kaocha suite is JVM-only, so the babashka half of the build is
+      # invisible to it: bb.edn declares its own :deps and the server runs
+      # under bb, and a bump to deps.edn alone once shipped a bb server that
+      # resolved one version behind it. Load that path and compare the two
+      # declarations here, before the suite.
+      - name: Install babashka
+        run: |
+          curl -fsSL -o /tmp/bb-install https://raw.githubusercontent.com/babashka/babashka/master/install
+          sudo bash /tmp/bb-install
+          bb --version
+
+      - name: Check the babashka classpath
+        run: |
+          set -euo pipefail
+          bb load-check
+          bb deps-agree
+
       - name: Test
         run: |
           set -euo pipefail

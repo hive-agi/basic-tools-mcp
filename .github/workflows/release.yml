@@ -42,6 +42,21 @@ jobs:
           sudo apt-get install -y --no-install-recommends ripgrep
           rg --version
 
+      # The suite is JVM-only; the babashka server has its own :deps in bb.edn
+      # and nothing else loads them. A release that cannot start under bb is not
+      # a release, so the same check staging-gate.yml runs gates the mint.
+      - name: Install babashka
+        run: |
+          curl -fsSL -o /tmp/bb-install https://raw.githubusercontent.com/babashka/babashka/master/install
+          sudo bash /tmp/bb-install
+          bb --version
+
+      - name: Check the babashka classpath
+        run: |
+          set -euo pipefail
+          bb load-check
+          bb deps-agree
+
       # A published pom is immutable, so the suite runs BEFORE anything
       # is minted. Without this step a red push straight to main still
       # deploys, and the bad version can never be replaced.

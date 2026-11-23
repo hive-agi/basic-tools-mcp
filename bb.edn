@@ -27,4 +27,51 @@
              :task (do (shell "sh -c" "clj-kondo --lint \"$(bb print-deps --format classpath)\" --dependencies --copy-configs --skip-lint")
                        (shell "sh -c" "clj-kondo --lint \"$(clojure -Spath -A:test)\" --dependencies --copy-configs --skip-lint"))}
   lint {:doc "Lint src and test with the imported macro configs"
-        :task (shell "clj-kondo --lint src test --fail-level error")}}}
+        :task (shell "clj-kondo --lint src test --fail-level error")}
+  ;; The JVM suite cannot see the babashka half of the build. The server runs
+  ;; under bb, and file_core pulls in file.search, so a source change that bb
+  ;; resolves wrongly stays green in kaocha and then dies here at ANALYSIS.
+  ;; This task is rung 3 for that path: it loads the entrypoint `bb server` loads.
+  load-check
+  {:doc "Load the bb server entrypoint and file-core, so the babashka classpath is exercised"
+   :task (do (require 'basic-tools-mcp.file-core)
+             (require 'basic-tools-mcp.server)
+             (println "bb load-check: file-core + server loaded under babashka"
+                      (System/getProperty "babashka.version")))}
+  ;; The dependency set is declared twice, in different coordinate KINDS:
+  ;; deps.edn {:mvn/version "0.6.2"} against bb.edn {:git/tag "v0.6.2"}. The two
+  ;; can never be compared by string equality, which is how 2cb5853 shipped a bb
+  ;; server resolving one version behind deps.edn. Compare the normalised version
+  ;; of every library both files declare. bb.edn forbids regex literals in its
+  ;; config, hence the explicit strip of a leading "v".
+  deps-agree
+  {:doc "Assert that every library declared in both deps.edn and bb.edn resolves to the same version"
+   :task (let [strip-v (fn [tag] (if (clojure.string/starts-with? tag "v")
+                                   (subs tag 1)
+                                   tag))
+                   dep-version
+                   (fn [coord]
+                     (or (:mvn/version coord)
+                         (some-> (:git/tag coord) strip-v)
+                         (:git/sha coord)))
+                   declared (fn [file] (:deps (clojure.edn/read-string (slurp file))))
+                   jvm (declared "deps.edn")
+                   bbd (declared "bb.edn")
+                   shared (sort (filter (fn [lib] (and (contains? jvm lib)
+                                                       (contains? bbd lib)))
+                                        (keys jvm)))
+                   rows (for [lib shared
+                              :let [a (dep-version (get jvm lib))
+                                    b (dep-version (get bbd lib))]]
+                          {:lib lib :a a :b b :agree? (= a b)})]
+               (doseq [{:keys [lib a b agree?]} rows]
+                 (println (if agree? "  ok   " "  DRIFT") lib
+                          "deps.edn" (pr-str a) "bb.edn" (pr-str b)))
+               (let [drift (remove :agree? rows)]
+                 (println (str "bb deps-agree: " (count rows) " shared libraries, "
+                               (count drift) " out of step"))
+                 (when (seq drift)
+                   (println (str "\ndeps.edn and bb.edn disagree: the babashka server would"
+                                 " resolve one version and the JVM suite the other."))
+                   (System/exit 1))))}}}
+
