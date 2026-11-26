@@ -10,14 +10,14 @@
         ;; babashka/fs — glob and filesystem utilities
         babashka/fs {:mvn/version "0.5.34"}
         ;; modex-bb — MCP server framework
-        io.github.hive-agi/modex-bb {:git/tag "v0.1.14"
-                                     :git/sha "7c26331a3b75903dbf646ef780082ac12492c148"}
+        io.github.hive-agi/modex-bb {:git/tag "v0.2.1"
+                                     :git/sha "c003655bb3dd9a330c2c29bceea311a4fb22b009"}
         ;; hive-dsl — Result ADT (also used by tools.clj handlers)
-        io.github.hive-agi/hive-dsl {:git/tag "v0.5.37" :git/sha "80b0563"}
+        io.github.hive-agi/hive-dsl {:mvn/version "0.6.2"}
         ;; hive-system — IPathQuery / IFilesystem protocols (DIP layer)
-        io.github.hive-agi/hive-system {:git/tag "v0.3.22" :git/sha "be0be3a"}
+        io.github.hive-agi/hive-system {:mvn/version "0.4.3"}
         ;; hive-weave — bounded execution primitives
-        io.github.hive-agi/hive-weave {:git/tag "v0.4.3" :git/sha "854b181"}}
+        io.github.hive-agi/hive-weave {:mvn/version "0.4.7"}}
  :tasks
  {server {:doc "Start the basic-tools MCP server (babashka)"
           :task (exec 'basic-tools-mcp.server/-main)}
@@ -27,4 +27,91 @@
              :task (do (shell "sh -c" "clj-kondo --lint \"$(bb print-deps --format classpath)\" --dependencies --copy-configs --skip-lint")
                        (shell "sh -c" "clj-kondo --lint \"$(clojure -Spath -A:test)\" --dependencies --copy-configs --skip-lint"))}
   lint {:doc "Lint src and test with the imported macro configs"
-        :task (shell "clj-kondo --lint src test --fail-level error")}}}
+        :task (shell "clj-kondo --lint src test --fail-level error")}
+  ;; The JVM suite cannot see the babashka half of the build. The server runs
+  ;; under bb, and file_core pulls in file.search, so a source change that bb
+  ;; resolves wrongly stays green in kaocha and then dies here at ANALYSIS.
+  ;; This task is rung 3 for that path: it loads the entrypoint `bb server` loads.
+  load-check
+  {:doc "Load the bb server entrypoint and file-core, so the babashka classpath is exercised"
+   :task (do (require 'basic-tools-mcp.file-core)
+             (require 'basic-tools-mcp.server)
+             (println "bb load-check: file-core + server loaded under babashka"
+                      (System/getProperty "babashka.version")))}
+  ;; The dependency set is declared twice, in different coordinate KINDS:
+  ;; deps.edn {:mvn/version "0.6.2"} against bb.edn {:git/tag "v0.6.2"}. The two
+  ;; can never be compared by string equality, which is how 2cb5853 shipped a bb
+  ;; server resolving one version behind deps.edn. Compare the normalised version
+  ;; of every library both files declare. bb.edn forbids regex literals in its
+  ;; config, hence the explicit strip of a leading "v".
+  ;;
+  ;; Fail closed. Three ways this check could lie, all of them closed here:
+  ;;   - a library on ONE side only: printed as a NOTE, not an error. A JVM-only
+  ;;     dep is normal here (clojure, timbre, rewrite-clj, hive-addon) and so is
+  ;;     a bb-only one (org.babashka/cli, modex-bb), because the two runtimes
+  ;;     genuinely need different things. What must never drift is the version of
+  ;;     a library BOTH use, so the note is visibility, not a gate.
+  ;;   - a coordinate carrying no version at all, e.g. {:local/root "..."} or
+  ;;     {:git/url ...} with no tag: two of those compare nil = nil and pass.
+  ;;     That is now an UNVERSIONED row and exits 1.
+  ;;   - two {:git/sha} pins with no tag: the sha is a COMMIT, not a version, so
+  ;;     comparing shas across a mvn/git pair is meaningless. Unversioned, exits 1.
+  deps-agree
+  {:doc "Assert that every library declared in both deps.edn and bb.edn resolves to the same version, failing closed on an unversioned or unparsable coordinate"
+   :task (let [strip-v (fn [tag] (if (clojure.string/starts-with? tag "v")
+                                   (subs tag 1)
+                                   tag))
+                   ;; The declared VERSION of a coordinate, or nil when the
+                   ;; coordinate is a non-version pin ({:local/root}, a bare
+                   ;; {:git/sha}). A version is what a mvn artifact or a git tag
+                   ;; names; a sha names a commit.
+                   dep-version
+                   (fn [coord]
+                     (cond
+                       (not (map? coord)) nil
+                       (:mvn/version coord) (str (:mvn/version coord))
+                       (:git/tag coord) (strip-v (str (:git/tag coord)))
+                       :else nil))
+                   declared (fn [file] (:deps (clojure.edn/read-string (slurp file))))
+                   jvm (declared "deps.edn")
+                   bbd (declared "bb.edn")
+                   both (sort (filter (fn [lib] (and (contains? jvm lib)
+                                                     (contains? bbd lib)))
+                                      (keys jvm)))
+                   jvm-only (sort (remove (set both) (keys jvm)))
+                   bb-only (sort (remove (set both) (keys bbd)))
+                   rows (for [lib both
+                              :let [a (dep-version (get jvm lib))
+                                    b (dep-version (get bbd lib))]]
+                          {:lib lib
+                           :a a
+                           :b b
+                           :state (cond
+                                    (or (nil? a) (nil? b)) :unversioned
+                                    (= a b) :ok
+                                    :else :drift)})
+                   drift (filter (fn [r] (= :drift (:state r))) rows)
+                   unversioned (filter (fn [r] (= :unversioned (:state r))) rows)]
+               (doseq [{:keys [lib a b state]} rows]
+                 (println (case state
+                            :ok "  ok         "
+                            :drift "  DRIFT      "
+                            :unversioned "  UNVERSIONED")
+                          lib "deps.edn" (pr-str a) "bb.edn" (pr-str b)))
+               (when (seq jvm-only)
+                 (println "  note: deps.edn only (JVM runtime):" (clojure.string/join ", " jvm-only)))
+               (when (seq bb-only)
+                 (println "  note: bb.edn only (babashka runtime):" (clojure.string/join ", " bb-only)))
+               (println (str "bb deps-agree: " (count rows) " shared libraries, "
+                             (count drift) " out of step, "
+                             (count unversioned) " with no version on a side"))
+               (when (seq unversioned)
+                 (println (str "\nno version to compare: a {:local/root} or bare {:git/sha} "
+                               "coordinate names no version, so two of them would agree "
+                               "vacuously. Give it a :mvn/version or a :git/tag.")))
+               (when (seq drift)
+                 (println (str "\ndeps.edn and bb.edn disagree: the babashka server would"
+                               " resolve one version and the JVM suite the other.")))
+               (when (or (seq drift) (seq unversioned))
+                 (System/exit 1)))}
+}}

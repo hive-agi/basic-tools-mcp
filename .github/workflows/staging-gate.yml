@@ -30,6 +30,13 @@ jobs:
     env:
       MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
       MAVEN_TOKEN: ${{ secrets.MAVEN_TOKEN }}
+      # Pinned babashka: the exact version bb --version reports locally, and
+      # the sha256 of that tag's linux-amd64-static tarball. Pinned because the
+      # upstream install script is read from master, a moving target that used
+      # to be piped into a root shell. The same two values must stay identical
+      # in release.yml and staging-gate.yml.
+      BABASHKA_VERSION: "1.13.224"
+      BABASHKA_SHA256: "aa55a3a2cacdfc2c8eba38991cdd4ea3d37eadde9ba374f0da0b95ad00daa1ba"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -79,6 +86,33 @@ jobs:
       - name: Resolve declared classpath
         run: clojure -P
 
+      # The kaocha suite is JVM-only, so the babashka half of the build is
+      # invisible to it: bb.edn declares its own :deps and the server runs
+      # under bb, and a bump to deps.edn alone once shipped a bb server that
+      # resolved one version behind it. Load that path and compare the two
+      # declarations here, before the suite.
+      - name: Install babashka (pinned, checksum-verified)
+        run: |
+          set -euo pipefail
+          tarball="babashka-${BABASHKA_VERSION}-linux-amd64-static.tar.gz"
+          url="https://github.com/babashka/babashka/releases/download/v${BABASHKA_VERSION}/${tarball}"
+          curl -fsSL -o "/tmp/${tarball}" "$url"
+          # The sha256 is written literally above, taken from the release's
+          # published .sha256 file. A mismatch (a retagged or tampered asset)
+          # fails here, before anything is extracted or executed.
+          echo "${BABASHKA_SHA256}  /tmp/${tarball}" | sha256sum -c -
+          tar -xzf "/tmp/${tarball}" -C /tmp
+          mkdir -p "$HOME/.local/bin"
+          install -m 0755 /tmp/bb "$HOME/.local/bin/bb"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/bb" --version
+
+      - name: Check the babashka classpath
+        run: |
+          set -euo pipefail
+          bb load-check
+          bb deps-agree
+
       - name: Test
         run: |
           set -euo pipefail
@@ -90,8 +124,7 @@ jobs:
             paths) clojure -Sdeps '{:deps {io.github.cognitect-labs/test-runner {:git/tag "v0.5.1" :git/sha "dfb30dd"}}}' -M:test -m cognitect.test-runner ;;
             *)
               if [ -f bb.edn ] && grep -qE '^\s*test\s' bb.edn; then
-                curl -fsSL -o /tmp/bb-install https://raw.githubusercontent.com/babashka/babashka/master/install
-                sudo bash /tmp/bb-install
+                # bb is already on PATH from the pinned install step above.
                 bb test
               else
                 echo "no runnable :test alias or bb test task; declared classpath resolved"

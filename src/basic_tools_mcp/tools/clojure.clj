@@ -48,6 +48,9 @@
                                           :description "Wrap template with %s placeholder"}}
                  :required   ["command"]}})
 
-(def clojure-tool-def tool-def)
+(defn clojure-tool-def
+  "Alias of `tool-def`, delegating through the var so a reload is seen."
+  []
+  (tool-def))
 
 (defn invalidate-cache! [] nil)
